@@ -2,6 +2,8 @@
 
 import sys
 
+from uptop.cli import cli_main
+
 
 def main() -> int:
     """Main entry point for uptop.
@@ -9,9 +11,13 @@ def main() -> int:
     Returns:
         Exit code (0 for success, non-zero for error)
     """
-    print("uptop v0.1.0 - Under development")
-    print("Phase 1 (Core Architecture) is next!")
-    return 0
+    try:
+        cli_main()
+        return 0
+    except SystemExit as e:
+        return e.code if isinstance(e.code, int) else 0
+    except KeyboardInterrupt:
+        return 130  # Standard exit code for SIGINT
 
 
 if __name__ == "__main__":

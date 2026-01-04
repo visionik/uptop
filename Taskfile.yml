@@ -18,10 +18,10 @@ tasks:
       - pip install -e ".[dev]"
 
   fmt:
-    desc: Format code (black, isort)
+    desc: Format code (black, ruff for imports)
     cmds:
       - black src tests
-      - isort src tests
+      - ruff check --fix --select I src tests
 
   lint:
     desc: Lint code (ruff)
