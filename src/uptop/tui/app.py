@@ -26,8 +26,10 @@ from textual.timer import Timer
 from textual.widgets import Footer, Header, Label, Static
 
 from uptop import __version__
+from uptop.models.base import DisplayMode
 from uptop.performance import get_profiler
 from uptop.tui.layouts.grid import DEFAULT_LAYOUT_CONFIG, GridLayout
+from uptop.tui.messages import DisplayModeChanged, PaneResized
 from uptop.tui.screens import (
     ConfirmKillScreen,
     FilterScreen,
@@ -228,6 +230,7 @@ class UptopApp(App[None]):
         Binding("/", "filter", "Filter"),
         Binding("s", "sort", "Sort"),
         Binding("k", "kill_process", "Kill"),
+        Binding("m", "cycle_display_mode", "Mode"),
     ]
 
     def __init__(
@@ -490,8 +493,12 @@ class UptopApp(App[None]):
             # Time the render
             render_start = time.monotonic()
 
-            # Render the widget
-            widget = plugin.render_tui(data)
+            # Get size and mode from container
+            size = (container.size.width, container.size.height) if container.size else None
+            mode = container.display_mode
+
+            # Render the widget with size and mode
+            widget = plugin.render_tui(data, size, mode)
 
             # Update the container
             container.set_content(widget)
@@ -697,6 +704,52 @@ class UptopApp(App[None]):
                     title="Kill",
                     severity="error",
                 )
+
+    async def action_cycle_display_mode(self) -> None:
+        """Cycle the display mode of the focused pane.
+
+        Cycles through MINIMUM -> MEDIUM -> MAXIMUM -> MINIMUM.
+        Shows a notification with the new mode.
+        """
+        try:
+            grid = self.query_one(GridLayout)
+            pane = grid.get_focused_pane()
+            if pane:
+                pane.cycle_display_mode()
+                # The watcher will post DisplayModeChanged which triggers refresh
+            else:
+                self.notify("No pane focused", title="Mode", timeout=1)
+        except Exception:
+            self.notify("No pane focused", title="Mode", timeout=1)
+
+    async def on_display_mode_changed(self, message: DisplayModeChanged) -> None:
+        """Handle display mode change by refreshing the affected pane.
+
+        Args:
+            message: The DisplayModeChanged message with pane_name
+        """
+        pane_name = message.pane_name
+        if pane_name:
+            await self._refresh_pane(pane_name)
+            # Show notification with new mode
+            from uptop.tui.widgets.pane_container import PaneContainer
+
+            try:
+                container = self.query_one(f"#pane-{pane_name}", PaneContainer)
+                mode_name = container.display_mode.value.title()
+                self.notify(f"{pane_name.title()}: {mode_name} mode", timeout=1)
+            except Exception:
+                pass
+
+    async def on_pane_resized(self, message: PaneResized) -> None:
+        """Handle pane resize by refreshing with new size.
+
+        Args:
+            message: The PaneResized message with pane_name and dimensions
+        """
+        # Only refresh if the pane has been initialized (has data)
+        if message.pane_name and message.pane_name in self._last_good_data:
+            await self._refresh_pane(message.pane_name)
 
 
 def run_app(config: Config | None = None, debug_mode: bool = False) -> None:

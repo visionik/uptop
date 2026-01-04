@@ -12,6 +12,7 @@ This module provides the core data models used throughout uptop:
 from uptop.models.base import (
     Counter,
     CounterFloat,
+    DisplayMode,
     Gauge,
     GaugeInt,
     MetricData,
@@ -35,6 +36,8 @@ __all__ = [
     "PluginType",
     # Metric types
     "MetricType",
+    # Display modes
+    "DisplayMode",
     # Type aliases
     "Counter",
     "CounterFloat",

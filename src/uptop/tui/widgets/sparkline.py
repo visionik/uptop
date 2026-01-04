@@ -119,7 +119,7 @@ class Sparkline(Widget):
         str
     ] = """
     Sparkline {
-        width: auto;
+        width: 100%;
         height: 1;
     }
     """
@@ -141,7 +141,7 @@ class Sparkline(Widget):
         show_label: bool = False,
         label: str = "",
         color_by_value: bool = True,
-        history_size: int = 60,
+        history_size: int = 200,
         *,
         name: str | None = None,
         id: str | None = None,  # noqa: A002
@@ -240,12 +240,19 @@ class Sparkline(Widget):
         if self.show_label and self.label:
             result.append(f"{self.label}: ", style="dim")
 
-        # Get the values to display (last 'width' values)
-        display_values = list(self._values)[-self.width :]
+        # Determine display width - use container width if width is 0 (auto mode)
+        display_width = self.width
+        if display_width <= 0 and self.size.width > 0:
+            display_width = self.size.width
+        elif display_width <= 0:
+            display_width = 30  # fallback default
+
+        # Get the values to display (last 'display_width' values)
+        display_values = list(self._values)[-display_width:]
 
         if not display_values:
             # No data - show placeholder
-            result.append("-" * self.width, style="dim")
+            result.append("-" * display_width, style="dim")
             return result
 
         # Determine the color for the sparkline
@@ -260,8 +267,8 @@ class Sparkline(Widget):
             char = value_to_char(value, self.min_value, self.max_value)
             chars.append(char)
 
-        # Pad with spaces if we have fewer values than width
-        padding = self.width - len(chars)
+        # Pad with spaces if we have fewer values than display width
+        padding = display_width - len(chars)
         if padding > 0:
             chars = [" "] * padding + chars
 

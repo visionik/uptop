@@ -82,7 +82,7 @@ class MemoryBar(Static):
         width: 100%;
         height: 2;
         layout: horizontal;
-        padding: 0;
+        padding: 0 1;
     }
 
     MemoryBar .bar-label {
@@ -323,15 +323,16 @@ class MemoryWidget(Widget):
     }
 
     MemoryWidget .sparkline-row {
+        width: 100%;
         height: 1;
-        padding: 0 1;
+        padding: 0;
     }
     """
 
     data: reactive[MemoryData | None] = reactive(None)
 
-    # Default history size (60 samples = 1 minute at 1 sample/second)
-    DEFAULT_HISTORY_SIZE: ClassVar[int] = 60
+    # Default history size - large enough to fill wide terminals
+    DEFAULT_HISTORY_SIZE: ClassVar[int] = 200
 
     # Threshold for considering data significantly changed (percentage points)
     SIGNIFICANT_CHANGE_THRESHOLD: ClassVar[float] = 0.5
@@ -340,7 +341,6 @@ class MemoryWidget(Widget):
         self,
         data: MemoryData | None = None,
         history_size: int = DEFAULT_HISTORY_SIZE,
-        sparkline_width: int = 30,
         *,
         name: str | None = None,
         id: str | None = None,  # noqa: A002
@@ -351,7 +351,6 @@ class MemoryWidget(Widget):
         Args:
             data: Optional MemoryData to display initially
             history_size: Maximum number of historical values to keep (default 60)
-            sparkline_width: Width of the sparkline in characters (default 30)
             name: Widget name
             id: Widget ID
             classes: CSS classes
@@ -360,7 +359,6 @@ class MemoryWidget(Widget):
         # Initialize instance variables BEFORE setting reactive data
         # to avoid AttributeError in watch_data
         self._history_size = history_size
-        self._sparkline_width = sparkline_width
         self._usage_history: deque[float] = deque(maxlen=history_size)
         self._last_ram_percent: float | None = None  # For change detection
         self._last_swap_percent: float | None = None
@@ -385,22 +383,21 @@ class MemoryWidget(Widget):
 
         # RAM Section
         with Vertical(classes="section", id="ram-section"):
+            # Sparkline for RAM usage history (first row, full width, no label)
+            yield Sparkline(
+                values=list(self._usage_history),
+                width=0,  # Auto-width based on container
+                min_value=0.0,
+                max_value=100.0,
+                show_label=False,
+                history_size=self._history_size,
+                id="memory-sparkline",
+                classes="sparkline-row",
+            )
             yield MemoryBar(
                 label="RAM",
                 percent=self.data.virtual.percent,
                 id="ram-bar",
-            )
-            # Sparkline for RAM usage history
-            yield Sparkline(
-                values=list(self._usage_history),
-                width=self._sparkline_width,
-                min_value=0.0,
-                max_value=100.0,
-                show_label=True,
-                label="History",
-                history_size=self._history_size,
-                id="memory-sparkline",
-                classes="sparkline-row",
             )
             yield MemoryDetails(
                 details=self._get_ram_details(),

@@ -350,8 +350,15 @@ class GridLayout(Container):
             pane_config = self._config.get_pane_config(pane_pos.name)
             refresh_interval = pane_config.refresh_interval
 
-        # Create display title (capitalize first letter)
-        display_title = pane_pos.name.replace("_", " ").title()
+        # Create display title with better formatting
+        title_map = {
+            "cpu": "CPU",
+            "memory": "Memory",
+            "processes": "Processes",
+            "network": "Network",
+            "disk": "Disk",
+        }
+        display_title = title_map.get(pane_pos.name, pane_pos.name.replace("_", " ").title())
 
         # Create the pane container with placeholder content
         pane = PaneContainer(

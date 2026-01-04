@@ -20,7 +20,7 @@ import psutil
 from pydantic import BaseModel, ConfigDict, Field
 
 from uptop.collectors.base import DataCollector
-from uptop.models.base import MetricData, gauge_field
+from uptop.models.base import DisplayMode, MetricData, gauge_field
 from uptop.plugin_api.base import PanePlugin
 
 if TYPE_CHECKING:
@@ -291,13 +291,20 @@ class CPUPane(PanePlugin):
 
         return await self._collector.collect()
 
-    def render_tui(self, data: MetricData) -> Widget:
+    def render_tui(
+        self,
+        data: MetricData,
+        size: tuple[int, int] | None = None,
+        mode: DisplayMode | None = None,
+    ) -> Widget:
         """Render collected data as a Textual widget.
 
         Caches the widget instance to preserve sparkline history across refreshes.
 
         Args:
             data: The CPUData from the most recent collection
+            size: Optional (width, height) in cells (currently unused)
+            mode: Optional DisplayMode (currently unused, always full display)
 
         Returns:
             A Textual Widget to display in the pane

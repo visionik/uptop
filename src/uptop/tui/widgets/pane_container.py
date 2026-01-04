@@ -19,10 +19,13 @@ from typing import ClassVar
 
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical, VerticalScroll
-from textual.events import Click
+from textual.events import Click, Resize
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Label, LoadingIndicator, Static
+
+from uptop.models.base import DisplayMode
+from uptop.tui.messages import DisplayModeChanged, PaneResized
 
 # Animation durations (in seconds)
 LOADING_SPINNER_FADE = 0.15
@@ -58,7 +61,7 @@ class PaneTitleBar(Static):
     PaneTitleBar {
         width: 100%;
         height: 1;
-        background: $primary-background;
+        background: $surface;
         color: $text;
         padding: 0 1;
         layout: horizontal;
@@ -67,6 +70,7 @@ class PaneTitleBar(Static):
     PaneTitleBar .title-text {
         width: 1fr;
         text-style: bold;
+        color: $accent;
     }
 
     PaneTitleBar .status-indicator {
@@ -84,7 +88,7 @@ class PaneTitleBar(Static):
     }
 
     PaneTitleBar .status-indicator.stale {
-        color: $warning-darken-1;
+        color: $warning;
     }
     """
 
@@ -328,6 +332,8 @@ class PaneContainer(Widget):
         width: 100%;
         height: 100%;
         border: solid $primary;
+        border-title-color: $accent;
+        border-title-style: bold;
         padding: 0;
         layout: vertical;
         layers: content loading;
@@ -335,18 +341,21 @@ class PaneContainer(Widget):
 
     PaneContainer:focus {
         border: double $accent;
+        border-title-color: $accent;
     }
 
     PaneContainer:focus-within {
         border: double $accent;
+        border-title-color: $accent;
     }
 
     PaneContainer.focused {
         border: double $accent;
+        border-title-color: $accent;
     }
 
+    /* Loading state - no visual change to avoid flashing */
     PaneContainer.loading {
-        border: solid $warning;
     }
 
     PaneContainer.error {
@@ -378,6 +387,7 @@ class PaneContainer(Widget):
     has_error: reactive[bool] = reactive(False)
     error_message: reactive[str] = reactive("")
     is_stale: reactive[bool] = reactive(False)
+    display_mode: reactive[DisplayMode] = reactive(DisplayMode.MEDIUM)
 
     # Whether this container can receive focus (for Tab navigation)
     can_focus: bool = True
@@ -413,7 +423,9 @@ class PaneContainer(Widget):
         Yields:
             The title bar, content area, and loading overlay widgets
         """
-        yield PaneTitleBar(title=self.title, state=self._get_current_state(), id="title-bar")
+        # Set border title
+        self.border_title = self.title
+
         with Vertical(id="pane-body"):
             if self.has_error:
                 yield ErrorDisplay(
@@ -442,20 +454,23 @@ class PaneContainer(Widget):
         return PaneState.NORMAL
 
     def _update_state_display(self) -> None:
-        """Update the title bar and container CSS to reflect current state."""
+        """Update the container CSS to reflect current state."""
         state = self._get_current_state()
-
-        # Update title bar state
-        try:
-            title_bar = self.query_one("#title-bar", PaneTitleBar)
-            title_bar.state = state
-        except Exception:
-            pass  # Widget may not be composed yet
 
         # Update container CSS classes
         self.remove_class("loading", "error", "stale")
         if state != PaneState.NORMAL:
             self.add_class(state.value)
+
+        # Update border title with state indicator
+        status_map = {
+            PaneState.NORMAL: "",
+            PaneState.LOADING: " [*]",
+            PaneState.ERROR: " [!]",
+            PaneState.STALE: " [~]",
+        }
+        status = status_map.get(state, "")
+        self.border_title = f"{self.title}{status}"
 
     def watch_title(self, new_title: str) -> None:
         """React to title changes.
@@ -463,11 +478,7 @@ class PaneContainer(Widget):
         Args:
             new_title: The new title value
         """
-        try:
-            title_bar = self.query_one("#title-bar", PaneTitleBar)
-            title_bar.title = new_title
-        except Exception:
-            pass  # Widget may not be composed yet
+        self.border_title = new_title
 
     def watch_is_loading(self, is_loading: bool) -> None:
         """React to loading state changes.
@@ -543,21 +554,15 @@ class PaneContainer(Widget):
     def start_loading(self) -> None:
         """Mark the pane as loading/refreshing.
 
-        Shows a loading spinner overlay if the load takes time.
+        Note: Loading overlay is disabled to avoid visual flashing.
+        The state is tracked for potential use by other UI elements.
         """
         self.is_loading = True
-        # Show loading overlay for visual feedback
-        try:
-            overlay = self.query_one("#loading-overlay", LoadingOverlay)
-            overlay.add_class("visible")
-        except Exception:
-            pass  # Overlay may not exist yet
 
     def stop_loading(self) -> None:
         """Mark the pane as done loading.
 
-        Hides the loading spinner and triggers a subtle highlight
-        to indicate data has been updated.
+        Hides the loading spinner.
         """
         self.is_loading = False
         # Hide loading overlay
@@ -566,8 +571,6 @@ class PaneContainer(Widget):
             overlay.remove_class("visible")
         except Exception:
             pass  # Overlay may not exist
-        # Apply brief highlight to indicate data updated
-        self._flash_data_updated()
 
     def _flash_data_updated(self) -> None:
         """Apply a brief highlight effect to indicate data was updated.
@@ -625,3 +628,50 @@ class PaneContainer(Widget):
         Called when the pane container receives focus.
         """
         self.add_class("focused")
+
+    def on_resize(self, event: Resize) -> None:
+        """Handle resize events by posting a message.
+
+        When the pane container is resized, post a PaneResized message
+        so the app can re-render the pane with the new dimensions.
+
+        Args:
+            event: The resize event with new dimensions
+        """
+        pane_name = self._get_pane_name()
+        if pane_name:
+            self.post_message(PaneResized(pane_name, event.size.width, event.size.height))
+
+    def _get_pane_name(self) -> str:
+        """Extract pane name from widget ID.
+
+        The widget ID follows the pattern 'pane-{name}', so this
+        extracts just the name portion.
+
+        Returns:
+            The pane name (e.g., 'cpu', 'memory') or empty string if unavailable
+        """
+        if self.id and self.id.startswith("pane-"):
+            return self.id[5:]
+        return ""
+
+    def cycle_display_mode(self) -> DisplayMode:
+        """Cycle to the next display mode.
+
+        Cycles through MINIMUM -> MEDIUM -> MAXIMUM -> MINIMUM.
+        Posts a DisplayModeChanged message when the mode changes.
+
+        Returns:
+            The new display mode after cycling
+        """
+        self.display_mode = self.display_mode.next()
+        return self.display_mode
+
+    def watch_display_mode(self, new_mode: DisplayMode) -> None:
+        """React to display mode changes by posting a message.
+
+        Args:
+            new_mode: The new display mode
+        """
+        if self.is_mounted:
+            self.post_message(DisplayModeChanged(self._get_pane_name()))

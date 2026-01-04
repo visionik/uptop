@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from uptop.models.base import MetricData, PluginMetadata, PluginType
+from uptop.models.base import DisplayMode, MetricData, PluginMetadata, PluginType
 
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -145,8 +145,8 @@ class PanePlugin(PluginBase):
                 # Gather CPU metrics
                 return CPUData(...)
 
-            def render_tui(self, data: CPUData) -> Widget:
-                # Create Textual widget
+            def render_tui(self, data: CPUData, size=None, mode=None) -> Widget:
+                # Create Textual widget (size and mode can be used to adapt display)
                 return CPUWidget(data)
 
             def get_schema(self) -> type[CPUData]:
@@ -176,13 +176,22 @@ class PanePlugin(PluginBase):
         ...
 
     @abstractmethod
-    def render_tui(self, data: MetricData) -> "Widget":
+    def render_tui(
+        self,
+        data: MetricData,
+        size: tuple[int, int] | None = None,
+        mode: DisplayMode | None = None,
+    ) -> "Widget":
         """Render collected data as a Textual widget.
 
         Called after collect_data() to update the TUI display.
 
         Args:
             data: The MetricData from the most recent collection
+            size: Optional tuple of (width, height) in terminal cells for the pane.
+                  If None, the plugin should use reasonable defaults.
+            mode: Optional DisplayMode (MINIMUM, MEDIUM, MAXIMUM).
+                  If None, defaults to MEDIUM behavior.
 
         Returns:
             A Textual Widget to display in the pane

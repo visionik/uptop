@@ -18,7 +18,7 @@ import psutil
 from pydantic import BaseModel, ConfigDict, Field
 
 from uptop.collectors.base import DataCollector
-from uptop.models.base import MetricData, counter_field, gauge_field
+from uptop.models.base import DisplayMode, MetricData, counter_field, gauge_field
 from uptop.plugin_api.base import PanePlugin
 
 if TYPE_CHECKING:
@@ -353,6 +353,7 @@ class NetworkPane(PanePlugin):
         """Initialize the network pane plugin."""
         super().__init__()
         self._collector: NetworkCollector | None = None
+        self._cached_widget = None  # Cache widget to preserve state
 
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the plugin with configuration.
@@ -369,6 +370,7 @@ class NetworkPane(PanePlugin):
 
     def shutdown(self) -> None:
         """Clean up plugin resources."""
+        self._cached_widget = None
         if self._collector:
             self._collector.shutdown()
             self._collector = None
@@ -390,11 +392,18 @@ class NetworkPane(PanePlugin):
 
         return await self._collector.collect()
 
-    def render_tui(self, data: MetricData) -> Widget:
+    def render_tui(
+        self,
+        data: MetricData,
+        size: tuple[int, int] | None = None,
+        mode: DisplayMode | None = None,
+    ) -> Widget:
         """Render collected data as a Textual widget.
 
         Args:
             data: The NetworkData from the most recent collection
+            size: Optional (width, height) in cells (currently unused)
+            mode: Optional DisplayMode (currently unused, always full display)
 
         Returns:
             A Textual Widget to display in the pane
@@ -407,10 +416,11 @@ class NetworkPane(PanePlugin):
         if not isinstance(data, NetworkData):
             return Label("Invalid network data")
 
-        # Create and populate the NetworkWidget with real data
-        widget = NetworkWidget()
-        widget.update_data(data)
-        return widget
+        # Reuse cached widget to preserve state
+        if self._cached_widget is None:
+            self._cached_widget = NetworkWidget()
+        self._cached_widget.update_data(data)
+        return self._cached_widget
 
     def get_schema(self) -> type[NetworkData]:
         """Return the Pydantic model class for this pane data.

@@ -39,11 +39,13 @@ from uptop.tui.panes.process_widget import (
     ProcessColumn,
     ProcessWidget,
     SortDirection,
+    get_max_pid,
+    get_pid_column_width,
 )
 from uptop.tui.panes.process_widget import format_bytes as format_process_bytes
 from uptop.tui.panes.process_widget import (
+    format_command,
     format_runtime,
-    truncate_command,
 )
 
 __all__ = [
@@ -76,6 +78,8 @@ __all__ = [
     "SortDirection",
     "COLUMN_CONFIG",
     "format_process_bytes",
+    "format_command",
     "format_runtime",
-    "truncate_command",
+    "get_max_pid",
+    "get_pid_column_width",
 ]

@@ -43,6 +43,35 @@ class MetricType(str, Enum):
     SUMMARY = "summary"
 
 
+class DisplayMode(str, Enum):
+    """Display density modes for panes.
+
+    Controls how much information is shown in each pane:
+    - MINIMUM: Essential information only, compact display
+    - MEDIUM: Standard display with key details (default)
+    - MAXIMUM: Full detail display with all available information
+
+    Attributes:
+        MINIMUM: Compact view showing only critical metrics
+        MEDIUM: Balanced view with important details (default)
+        MAXIMUM: Full view with all available information
+    """
+
+    MINIMUM = "minimum"
+    MEDIUM = "medium"
+    MAXIMUM = "maximum"
+
+    def next(self) -> "DisplayMode":
+        """Cycle to the next display mode.
+
+        Returns:
+            The next mode in the cycle: MINIMUM -> MEDIUM -> MAXIMUM -> MINIMUM
+        """
+        modes = list(DisplayMode)
+        idx = (modes.index(self) + 1) % len(modes)
+        return modes[idx]
+
+
 def _metric_field(
     metric_type: MetricType,
     description: str = "",

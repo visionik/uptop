@@ -15,7 +15,7 @@ import psutil
 from pydantic import ConfigDict, Field
 
 from uptop.collectors.base import DataCollector
-from uptop.models.base import MetricData, gauge_field
+from uptop.models.base import DisplayMode, MetricData, gauge_field
 from uptop.plugin_api.base import PanePlugin
 
 if TYPE_CHECKING:
@@ -213,6 +213,7 @@ class ProcessPane(PanePlugin):
         """Initialize the ProcessPane."""
         super().__init__()
         self._collector = ProcessCollector()
+        self._cached_widget = None  # Cache widget to preserve filter/sort state
 
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the pane with configuration.
@@ -225,6 +226,7 @@ class ProcessPane(PanePlugin):
 
     def shutdown(self) -> None:
         """Clean up resources."""
+        self._cached_widget = None
         self._collector.shutdown()
         super().shutdown()
 
@@ -236,11 +238,18 @@ class ProcessPane(PanePlugin):
         """
         return await self._collector.collect()
 
-    def render_tui(self, data: MetricData) -> Widget:
+    def render_tui(
+        self,
+        data: MetricData,
+        size: tuple[int, int] | None = None,
+        mode: DisplayMode | None = None,
+    ) -> Widget:
         """Render the process data as a Textual widget.
 
         Args:
             data: ProcessListData from collect_data()
+            size: Optional (width, height) in cells (currently unused)
+            mode: Optional DisplayMode (currently unused, always full display)
 
         Returns:
             A Textual Widget for display
@@ -253,10 +262,11 @@ class ProcessPane(PanePlugin):
         if not isinstance(data, ProcessListData):
             return Label("Invalid data type")
 
-        # Create and populate the ProcessWidget with real data
-        widget = ProcessWidget()
-        widget.update_data(data)
-        return widget
+        # Reuse cached widget to preserve filter/sort state
+        if self._cached_widget is None:
+            self._cached_widget = ProcessWidget()
+        self._cached_widget.update_data(data)
+        return self._cached_widget
 
     def get_schema(self) -> type[ProcessListData]:
         """Return the Pydantic model class for this pane's data.

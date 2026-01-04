@@ -202,6 +202,11 @@ class NetworkWidget(Widget):
         except Exception:
             return  # Widget not ready
 
+        # Save scroll position and cursor before clearing
+        saved_scroll_x = table.scroll_x
+        saved_scroll_y = table.scroll_y
+        saved_cursor_row = table.cursor_row
+
         # Clear existing rows
         table.clear()
 
@@ -215,6 +220,21 @@ class NetworkWidget(Widget):
         for iface in sorted_interfaces:
             row_data = self._format_interface_row(iface)
             table.add_row(*row_data, key=iface.name)
+
+        # Restore scroll position and cursor after layout completes
+        row_count = table.row_count
+        if row_count > 0 and (saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0):
+            def restore_scroll() -> None:
+                """Restore scroll position after layout."""
+                if saved_cursor_row is not None and table.row_count > 0:
+                    target_row = min(saved_cursor_row, table.row_count - 1)
+                    table.move_cursor(row=target_row)
+                if saved_scroll_x > 0:
+                    table.scroll_x = saved_scroll_x
+                if saved_scroll_y > 0:
+                    table.scroll_y = saved_scroll_y
+
+            self.call_after_refresh(restore_scroll)
 
         # Update summary line
         self._update_summary()

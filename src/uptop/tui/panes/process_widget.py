@@ -18,6 +18,8 @@ The widget supports:
 
 from __future__ import annotations
 
+import platform
+import subprocess
 from enum import Enum
 import time
 from typing import TYPE_CHECKING, ClassVar
@@ -31,6 +33,59 @@ from textual.widgets.data_table import RowKey
 
 if TYPE_CHECKING:
     from uptop.plugins.processes import ProcessInfo, ProcessListData
+
+
+def get_max_pid() -> int:
+    """Get the maximum PID value for the current OS.
+
+    Returns:
+        Maximum PID value supported by the OS.
+        - Linux: reads /proc/sys/kernel/pid_max (default 32768, max 4194304)
+        - FreeBSD: reads sysctl kern.pid_max (typically 99999)
+        - macOS: fixed at 99998
+    """
+    system = platform.system()
+
+    if system == "Linux":
+        try:
+            with open("/proc/sys/kernel/pid_max") as f:
+                return int(f.read().strip())
+        except (OSError, ValueError):
+            return 32768  # Linux default
+
+    if system == "FreeBSD":
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "kern.pid_max"],
+                capture_output=True,
+                text=True,
+                timeout=1,
+            )
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            pass
+        return 99999  # FreeBSD default
+
+    if system == "Darwin":  # macOS
+        return 99998
+
+    # Unknown OS - use conservative default
+    return 99999
+
+
+def get_pid_column_width() -> int:
+    """Calculate the PID column width based on max PID digits.
+
+    Returns:
+        Column width needed to display the largest possible PID.
+    """
+    max_pid = get_max_pid()
+    return len(str(max_pid))
+
+
+# Cache the PID column width at module load time
+_PID_COLUMN_WIDTH = get_pid_column_width()
 
 
 class SortDirection(str, Enum):
@@ -55,14 +110,15 @@ class ProcessColumn(str, Enum):
 
 
 # Column metadata: (display_name, width, is_sortable)
+# PID width is dynamically calculated based on OS max PID
 COLUMN_CONFIG: dict[ProcessColumn, tuple[str, int | None, bool]] = {
-    ProcessColumn.PID: ("PID", 8, True),
+    ProcessColumn.PID: ("PID", _PID_COLUMN_WIDTH, True),
     ProcessColumn.USER: ("User", 12, True),
     ProcessColumn.CPU: ("CPU%", 7, True),
     ProcessColumn.MEM: ("MEM%", 7, True),
-    ProcessColumn.VSZ: ("VSZ", 10, True),
-    ProcessColumn.RSS: ("RSS", 10, True),
-    ProcessColumn.STATE: ("State", 8, True),
+    ProcessColumn.VSZ: ("V-MEM", 7, True),
+    ProcessColumn.RSS: ("P-MEM", 7, True),
+    ProcessColumn.STATE: ("⚑", 1, True),
     ProcessColumn.RUNTIME: ("Runtime", 10, True),
     ProcessColumn.COMMAND: ("Command", None, True),  # None = flexible width
 }
@@ -99,11 +155,12 @@ def format_bytes(size_bytes: int) -> str:
 
     Returns:
         Human-readable size string (e.g., "1.5G", "256M", "128K")
+        Output is always <= 7 chars to fit column width.
     """
     if size_bytes < 0:
         return "0"
 
-    units = [("G", 1024**3), ("M", 1024**2), ("K", 1024)]
+    units = [("T", 1024**4), ("G", 1024**3), ("M", 1024**2), ("K", 1024)]
 
     for suffix, threshold in units:
         if size_bytes >= threshold:
@@ -141,25 +198,20 @@ def format_runtime(create_time: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
-def truncate_command(cmdline: str | None, name: str, max_length: int = 50) -> str:
-    """Truncate command line for display.
+def format_command(cmdline: str | None, name: str) -> str:
+    """Format command line for display.
 
     Args:
         cmdline: Full command line or None
         name: Process name fallback
-        max_length: Maximum display length
 
     Returns:
-        Truncated command string
+        Command string (full, not truncated - horizontal scroll handles overflow)
     """
     text = cmdline if cmdline else name
     if not text:
         return "<unknown>"
-
-    if len(text) <= max_length:
-        return text
-
-    return text[: max_length - 3] + "..."
+    return text
 
 
 class ProcessWidget(Widget):
@@ -289,7 +341,6 @@ class ProcessWidget(Widget):
     sort_direction: reactive[SortDirection] = reactive(SortDirection.DESCENDING)
     filter_text: reactive[str] = reactive("")
     tree_view: reactive[bool] = reactive(False)
-    command_max_length: reactive[int] = reactive(50)
 
     # Thresholds for highlighting
     HIGH_CPU_THRESHOLD: ClassVar[float] = 50.0
@@ -299,7 +350,6 @@ class ProcessWidget(Widget):
         self,
         sort_column: ProcessColumn = ProcessColumn.CPU,
         sort_direction: SortDirection = SortDirection.DESCENDING,
-        command_max_length: int = 50,
         *,
         name: str | None = None,
         id: str | None = None,  # noqa: A002
@@ -310,7 +360,6 @@ class ProcessWidget(Widget):
         Args:
             sort_column: Initial sort column
             sort_direction: Initial sort direction
-            command_max_length: Maximum length for command column display
             name: Widget name
             id: Widget ID
             classes: CSS classes
@@ -318,7 +367,6 @@ class ProcessWidget(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self.sort_column = sort_column
         self.sort_direction = sort_direction
-        self.command_max_length = command_max_length
         self._data: ProcessListData | None = None
         self._pid_to_row_key: dict[int, RowKey] = {}
 
@@ -346,7 +394,7 @@ class ProcessWidget(Widget):
             display_name, width, _ = COLUMN_CONFIG[column]
             # Add sort indicator to current sort column
             if column == self.sort_column:
-                indicator = " ^" if self.sort_direction == SortDirection.ASCENDING else " v"
+                indicator = "▲" if self.sort_direction == SortDirection.ASCENDING else "▼"
                 display_name = display_name + indicator
 
             if width is not None:
@@ -400,15 +448,15 @@ class ProcessWidget(Widget):
         state_symbol = state_info[0]
 
         return (
-            str(proc.pid),
+            str(proc.pid).rjust(_PID_COLUMN_WIDTH),
             proc.username[:12] if proc.username else "",
-            f"{proc.cpu_percent:.1f}",
-            f"{proc.memory_percent:.1f}",
-            format_bytes(proc.memory_vms_bytes),
-            format_bytes(proc.memory_rss_bytes),
+            f"{proc.cpu_percent:>6.1f}",
+            f"{proc.memory_percent:>6.1f}",
+            f"{format_bytes(proc.memory_vms_bytes):>7}",
+            f"{format_bytes(proc.memory_rss_bytes):>7}",
             state_symbol,
-            format_runtime(proc.create_time),
-            truncate_command(proc.cmdline, proc.name, self.command_max_length),
+            f"{format_runtime(proc.create_time):>10}",
+            format_command(proc.cmdline, proc.name),
         )
 
     def update_data(self, data: ProcessListData) -> None:
@@ -439,6 +487,11 @@ class ProcessWidget(Widget):
 
         # Filter processes first
         filtered_processes = [p for p in data.processes if self._matches_filter(p)]
+
+        # Save scroll position and cursor before clearing
+        saved_scroll_x = table.scroll_x
+        saved_scroll_y = table.scroll_y
+        saved_cursor_row = table.cursor_row
 
         # Clear and rebuild table
         table.clear()
@@ -482,6 +535,21 @@ class ProcessWidget(Widget):
 
         # Update summary
         summary.update(" | ".join(summary_parts))
+
+        # Restore scroll position and cursor after layout completes
+        row_count = table.row_count
+        if row_count > 0 and (saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0):
+            def restore_scroll() -> None:
+                """Restore scroll position after layout."""
+                if saved_cursor_row is not None and table.row_count > 0:
+                    target_row = min(saved_cursor_row, table.row_count - 1)
+                    table.move_cursor(row=target_row)
+                if saved_scroll_x > 0:
+                    table.scroll_x = saved_scroll_x
+                if saved_scroll_y > 0:
+                    table.scroll_y = saved_scroll_y
+
+            self.call_after_refresh(restore_scroll)
 
     def get_selected_pid(self) -> int | None:
         """Get the PID of the currently selected process.
@@ -788,19 +856,17 @@ class ProcessWidget(Widget):
         # Add tree indentation to command
         indent = "  " * indent_level
         tree_prefix = "|- " if indent_level > 0 else ""
-        command = truncate_command(
-            proc.cmdline, proc.name, self.command_max_length - len(indent) - len(tree_prefix)
-        )
+        command = format_command(proc.cmdline, proc.name)
         command_display = f"{indent}{tree_prefix}{command}"
 
         return (
-            str(proc.pid),
+            str(proc.pid).rjust(_PID_COLUMN_WIDTH),
             proc.username[:12] if proc.username else "",
-            f"{proc.cpu_percent:.1f}",
-            f"{proc.memory_percent:.1f}",
-            format_bytes(proc.memory_vms_bytes),
-            format_bytes(proc.memory_rss_bytes),
+            f"{proc.cpu_percent:>6.1f}",
+            f"{proc.memory_percent:>6.1f}",
+            f"{format_bytes(proc.memory_vms_bytes):>7}",
+            f"{format_bytes(proc.memory_rss_bytes):>7}",
             state_symbol,
-            format_runtime(proc.create_time),
+            f"{format_runtime(proc.create_time):>10}",
             command_display,
         )
