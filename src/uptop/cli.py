@@ -38,7 +38,6 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel
 from rich.console import Console
-from rich.table import Table
 import typer
 
 from uptop import __version__
@@ -765,6 +764,32 @@ def cli_command(
     pane_names = parse_panes_option(panes)
 
     run_uptop(cfg, query=query, pane_names=pane_names)
+
+
+@app.command("serve")
+def serve_command(
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            "-p",
+            help="Port to serve on",
+        ),
+    ] = 8000,
+    host: Annotated[
+        str,
+        typer.Option(
+            "--host",
+            "-H",
+            help="Host to bind to",
+        ),
+    ] = "localhost",
+) -> None:
+    """Serve uptop as a web application."""
+    from textual_serve.server import Server
+
+    server = Server(sys.argv[0], host=host, port=port, title="uptop")
+    server.serve()
 
 
 def parse_panes_option(panes: list[str] | None) -> list[str] | None:
