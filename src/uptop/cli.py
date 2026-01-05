@@ -788,7 +788,7 @@ def serve_command(
     """Serve uptop as a web application."""
     from textual_serve.server import Server
 
-    server = Server(sys.argv[0], host=host, port=port, title="uptop")
+    server = Server(f"{sys.argv[0]} tui", host=host, port=port, title="uptop")
     server.serve()
 
 
