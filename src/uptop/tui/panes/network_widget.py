@@ -13,7 +13,7 @@ from typing import ClassVar
 from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import DataTable, Static
+from textual.widgets import DataTable
 
 from uptop.plugins.network import NetworkData, NetworkInterfaceData
 
@@ -83,20 +83,20 @@ class NetworkWidget(Widget):
         padding: 0;
     }
 
-    NetworkWidget DataTable {
+    NetworkWidget #interface-table {
         width: 100%;
         height: 1fr;
         scrollbar-size: 1 1;
     }
 
-    NetworkWidget .summary-line {
+    NetworkWidget #summary-table {
         width: 100%;
         height: 1;
-        padding: 0 1;
+        scrollbar-size: 0 0;
         background: $surface;
     }
 
-    NetworkWidget .summary-line.has-errors {
+    NetworkWidget #summary-table.has-errors {
         color: $warning;
     }
     """
@@ -123,9 +123,9 @@ class NetworkWidget(Widget):
         self.data = data
 
     def compose(self) -> ComposeResult:
-        """Compose the widget with a data table and summary line."""
+        """Compose the widget with a data table and summary row."""
         yield DataTable(id="interface-table")
-        yield Static("", id="summary-line", classes="summary-line")
+        yield DataTable(id="summary-table")
 
     def on_mount(self) -> None:
         """Set up the data table when the widget is mounted."""
@@ -133,7 +133,7 @@ class NetworkWidget(Widget):
         table.cursor_type = "row"
         table.zebra_stripes = True
 
-        # Add columns
+        # Add columns to interface table
         table.add_column("Interface", key="name", width=12)
         table.add_column("◐", key="status", width=1)
         table.add_column("TX Now", key="tx_rate", width=7)
@@ -142,6 +142,19 @@ class NetworkWidget(Widget):
         table.add_column("RX Sum", key="rx_total", width=7)
         table.add_column("⚠", key="errors")
         table.add_column("⇣", key="drops")
+
+        # Set up summary table with same columns (no header)
+        summary = self.query_one("#summary-table", DataTable)
+        summary.show_header = False
+        summary.show_cursor = False
+        summary.add_column("name", width=12)
+        summary.add_column("status", width=1)
+        summary.add_column("tx_rate", width=7)
+        summary.add_column("rx_rate", width=7)
+        summary.add_column("tx_total", width=7)
+        summary.add_column("rx_total", width=7)
+        summary.add_column("errors")
+        summary.add_column("drops")
 
         # Populate with initial data if available
         if self.data is not None:
@@ -258,39 +271,39 @@ class NetworkWidget(Widget):
         self._update_summary()
 
     def _update_summary(self) -> None:
-        """Update the summary line with connection count and totals."""
+        """Update the summary row with totals matching the table columns."""
         if self.data is None:
             return
 
         try:
-            summary = self.query_one("#summary-line", Static)
+            summary = self.query_one("#summary-table", DataTable)
         except Exception:
             return  # Widget not ready
 
-        # Build summary text
-        parts = []
-
-        # Total bandwidth
-        if self.data.total_bandwidth_up > 0 or self.data.total_bandwidth_down > 0:
-            parts.append(
-                f"Total: TX {format_bytes(self.data.total_bandwidth_up)} / "
-                f"RX {format_bytes(self.data.total_bandwidth_down)}"
-            )
-
-        # Connection count
-        parts.append(f"Connections: {self.data.connection_count}")
-
-        # Error summary
+        # Calculate totals
+        total_bytes_sent = sum(iface.bytes_sent for iface in self.data.interfaces)
+        total_bytes_recv = sum(iface.bytes_recv for iface in self.data.interfaces)
         total_errors = sum(iface.errors_in + iface.errors_out for iface in self.data.interfaces)
         total_drops = sum(iface.drops_in + iface.drops_out for iface in self.data.interfaces)
 
-        has_issues = total_errors > 0 or total_drops > 0
-        if has_issues:
-            parts.append(f"Errors: {total_errors}, Drops: {total_drops}")
+        # Format row data to match interface table columns
+        row_data = (
+            "(TOTAL)",  # Interface name
+            " ",  # Status (empty)
+            format_bytes(self.data.total_bandwidth_up).rjust(7),  # TX Now
+            format_bytes(self.data.total_bandwidth_down).rjust(7),  # RX Now
+            format_bytes(total_bytes_sent).rjust(7),  # TX Sum
+            format_bytes(total_bytes_recv).rjust(7),  # RX Sum
+            format_count(total_errors),  # Errors
+            format_count(total_drops),  # Drops
+        )
 
-        summary.update(" | ".join(parts))
+        # Clear and add the summary row
+        summary.clear()
+        summary.add_row(*row_data, key="total")
 
         # Update CSS class for warning styling
+        has_issues = total_errors > 0 or total_drops > 0
         if has_issues:
             summary.add_class("has-errors")
         else:
