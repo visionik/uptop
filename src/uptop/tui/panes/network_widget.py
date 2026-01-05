@@ -288,7 +288,7 @@ class NetworkWidget(Widget):
 
         # Format row data to match interface table columns
         row_data = (
-            "(TOTAL)",  # Interface name
+            "TOTAL",  # Interface name
             " ",  # Status (empty)
             format_bytes(self.data.total_bandwidth_up).rjust(7),  # TX Now
             format_bytes(self.data.total_bandwidth_down).rjust(7),  # RX Now
