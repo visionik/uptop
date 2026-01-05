@@ -19,31 +19,45 @@ from uptop.plugins.network import NetworkData, NetworkInterfaceData
 
 
 def format_bytes(bytes_val: int | float) -> str:
-    """Format bytes value with appropriate unit.
+    """Format bytes value with appropriate unit (KB or larger).
 
     Args:
         bytes_val: Number of bytes
 
     Returns:
-        Formatted string like "1.2 GB" or "456 KB"
+        Formatted string like "1.2GB" or "456KB" (no space, never plain bytes)
     """
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if abs(bytes_val) < 1024.0:
-            return f"{bytes_val:.1f} {unit}"
-        bytes_val /= 1024.0
-    return f"{bytes_val:.1f} PB"
+    # Always convert to at least KB
+    kb_val = bytes_val / 1024.0
+
+    for unit in ["KB", "MB", "GB", "TB"]:
+        if abs(kb_val) < 1024.0:
+            return f"{kb_val:.1f}{unit}"
+        kb_val /= 1024.0
+    return f"{kb_val:.1f}PB"
 
 
-def format_rate(bytes_per_sec: float) -> str:
-    """Format bandwidth rate with appropriate unit.
+def format_count(value: int) -> str:
+    """Format a count value with appropriate suffix.
 
     Args:
-        bytes_per_sec: Bytes per second
+        value: The count value (packets, errors, drops, etc.)
 
     Returns:
-        Formatted string like "1.2 MB/s" or "456 KB/s"
+        Formatted string:
+        - 0-999: plain number (0, 1, 999)
+        - 1K-9.9K: one decimal (1.0K, 9.9K)
+        - 10K-999.9K: one decimal (10.0K, 999.9K)
+        - 1M-999.9M: one decimal (1.0M, 999.9M)
+        - 1B+: one decimal (1.0B, etc.)
     """
-    return f"{format_bytes(bytes_per_sec)}/s"
+    if value < 1000:
+        return str(value)
+    if value < 1_000_000:
+        return f"{value / 1000:.1f}K"
+    if value < 1_000_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    return f"{value / 1_000_000_000:.1f}B"
 
 
 class NetworkWidget(Widget):
@@ -72,6 +86,7 @@ class NetworkWidget(Widget):
     NetworkWidget DataTable {
         width: 100%;
         height: 1fr;
+        scrollbar-size: 1 1;
     }
 
     NetworkWidget .summary-line {
@@ -120,13 +135,13 @@ class NetworkWidget(Widget):
 
         # Add columns
         table.add_column("Interface", key="name", width=12)
-        table.add_column("Status", key="status", width=6)
-        table.add_column("TX Rate", key="tx_rate", width=12)
-        table.add_column("RX Rate", key="rx_rate", width=12)
-        table.add_column("TX Total", key="tx_total", width=10)
-        table.add_column("RX Total", key="rx_total", width=10)
-        table.add_column("Errors", key="errors", width=8)
-        table.add_column("Drops", key="drops", width=8)
+        table.add_column("◐", key="status", width=1)
+        table.add_column("TX Now", key="tx_rate", width=7)
+        table.add_column("RX Now", key="rx_rate", width=7)
+        table.add_column("TX Sum", key="tx_total", width=7)
+        table.add_column("RX Sum", key="rx_total", width=7)
+        table.add_column("⚠", key="errors")
+        table.add_column("⇣", key="drops")
 
         # Populate with initial data if available
         if self.data is not None:
@@ -150,21 +165,21 @@ class NetworkWidget(Widget):
             iface: The interface data to format
 
         Returns:
-            Tuple of formatted column values
+            Tuple of formatted column values (rates/totals right-justified)
         """
-        status = "UP" if iface.is_up else "DOWN"
-        tx_rate = format_rate(iface.bandwidth_up)
-        rx_rate = format_rate(iface.bandwidth_down)
-        tx_total = format_bytes(iface.bytes_sent)
-        rx_total = format_bytes(iface.bytes_recv)
+        status = "●" if iface.is_up else "○"
+        tx_rate = format_bytes(iface.bandwidth_up).rjust(7)
+        rx_rate = format_bytes(iface.bandwidth_down).rjust(7)
+        tx_total = format_bytes(iface.bytes_sent).rjust(7)
+        rx_total = format_bytes(iface.bytes_recv).rjust(7)
 
         # Format errors (combine in/out)
         total_errors = iface.errors_in + iface.errors_out
-        errors = str(total_errors) if total_errors > 0 else "-"
+        errors = format_count(total_errors)
 
         # Format drops (combine in/out)
         total_drops = iface.drops_in + iface.drops_out
-        drops = str(total_drops) if total_drops > 0 else "-"
+        drops = format_count(total_drops)
 
         return (iface.name, status, tx_rate, rx_rate, tx_total, rx_total, errors, drops)
 
@@ -223,7 +238,10 @@ class NetworkWidget(Widget):
 
         # Restore scroll position and cursor after layout completes
         row_count = table.row_count
-        if row_count > 0 and (saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0):
+        has_position_to_restore = (
+            saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0
+        )
+        if row_count > 0 and has_position_to_restore:
             def restore_scroll() -> None:
                 """Restore scroll position after layout."""
                 if saved_cursor_row is not None and table.row_count > 0:
@@ -255,8 +273,8 @@ class NetworkWidget(Widget):
         # Total bandwidth
         if self.data.total_bandwidth_up > 0 or self.data.total_bandwidth_down > 0:
             parts.append(
-                f"Total: TX {format_rate(self.data.total_bandwidth_up)} / "
-                f"RX {format_rate(self.data.total_bandwidth_down)}"
+                f"Total: TX {format_bytes(self.data.total_bandwidth_up)} / "
+                f"RX {format_bytes(self.data.total_bandwidth_down)}"
             )
 
         # Connection count

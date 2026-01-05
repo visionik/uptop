@@ -18,9 +18,9 @@ The widget supports:
 
 from __future__ import annotations
 
+from enum import Enum
 import platform
 import subprocess
-from enum import Enum
 import time
 from typing import TYPE_CHECKING, ClassVar
 
@@ -214,6 +214,26 @@ def format_command(cmdline: str | None, name: str) -> str:
     return text
 
 
+def truncate_command(cmdline: str | None, name: str, max_length: int = 50) -> str:
+    """Format and truncate command line for display.
+
+    Args:
+        cmdline: Full command line or None
+        name: Process name fallback
+        max_length: Maximum length of the returned string
+
+    Returns:
+        Command string, truncated with "..." if exceeds max_length
+    """
+    text = cmdline if cmdline else name
+    if not text:
+        return "<unknown>"
+    if len(text) <= max_length:
+        return text
+    # Truncate and add ellipsis, ensuring total length is max_length
+    return text[: max_length - 3] + "..."
+
+
 class ProcessWidget(Widget):
     """Widget for displaying process list with DataTable.
 
@@ -313,6 +333,7 @@ class ProcessWidget(Widget):
     ProcessWidget DataTable {
         width: 100%;
         height: 1fr;
+        scrollbar-size: 1 1;
     }
 
     ProcessWidget .summary-bar {
@@ -350,6 +371,7 @@ class ProcessWidget(Widget):
         self,
         sort_column: ProcessColumn = ProcessColumn.CPU,
         sort_direction: SortDirection = SortDirection.DESCENDING,
+        command_max_length: int = 50,
         *,
         name: str | None = None,
         id: str | None = None,  # noqa: A002
@@ -360,6 +382,7 @@ class ProcessWidget(Widget):
         Args:
             sort_column: Initial sort column
             sort_direction: Initial sort direction
+            command_max_length: Maximum length for command column
             name: Widget name
             id: Widget ID
             classes: CSS classes
@@ -367,6 +390,7 @@ class ProcessWidget(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self.sort_column = sort_column
         self.sort_direction = sort_direction
+        self.command_max_length = command_max_length
         self._data: ProcessListData | None = None
         self._pid_to_row_key: dict[int, RowKey] = {}
 
@@ -538,7 +562,10 @@ class ProcessWidget(Widget):
 
         # Restore scroll position and cursor after layout completes
         row_count = table.row_count
-        if row_count > 0 and (saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0):
+        has_position_to_restore = (
+            saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0
+        )
+        if row_count > 0 and has_position_to_restore:
             def restore_scroll() -> None:
                 """Restore scroll position after layout."""
                 if saved_cursor_row is not None and table.row_count > 0:

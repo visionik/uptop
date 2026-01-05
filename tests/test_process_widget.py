@@ -450,7 +450,8 @@ class TestProcessWidgetRendering:
             if table.row_count > 0:
                 first_row = table.get_row_at(0)
                 # First row should be lowest PID (1000)
-                assert first_row[0] == "1000"
+                # Note: PID may be right-justified, so strip whitespace
+                assert first_row[0].strip() == "1000"
 
     @pytest.mark.asyncio
     async def test_set_sort_toggle_direction(self) -> None:

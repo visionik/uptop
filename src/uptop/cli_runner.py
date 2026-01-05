@@ -12,18 +12,19 @@ and formatters to produce CLI output.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from datetime import UTC, datetime
+import signal
 import socket
 import sys
-from datetime import UTC, datetime
 from typing import Any
 
 from rich.console import Console
 
 from uptop.config import Config
 from uptop.formatters import JsonFormatter, PrometheusFormatter
-from uptop.models.base import MetricData, PluginType
+from uptop.models.base import MetricData
 from uptop.plugin_api.base import FormatterPlugin, PanePlugin
-from uptop.plugins import PluginRegistry
 
 console = Console(stderr=True)
 
@@ -78,12 +79,11 @@ def get_formatter(format_name: str, config: Config) -> FormatterPlugin:
         formatter = JsonFormatter(pretty_print=pretty_print)
         formatter.initialize({"pretty_print": pretty_print})
         return formatter
-    elif format_name == "prometheus":
+    if format_name == "prometheus":
         formatter = PrometheusFormatter()
         formatter.initialize()
         return formatter
-    else:
-        raise ValueError(f"Unknown format: {format_name}. Available: json, prometheus")
+    raise ValueError(f"Unknown format: {format_name}. Available: json, prometheus")
 
 
 def get_available_panes() -> list[str]:
@@ -196,11 +196,9 @@ async def collect_all_panes(
             data[name] = result
 
     # Shutdown panes
-    for name, pane in panes:
-        try:
+    for _name, pane in panes:
+        with contextlib.suppress(Exception):
             pane.shutdown()
-        except Exception:
-            pass
 
     return data
 
@@ -322,14 +320,29 @@ async def run_cli_continuous(
 
     interval = config.interval if config else 1.0
 
+    # Set up signal handler for graceful shutdown
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def handle_signal() -> None:
+        """Handle SIGINT/SIGTERM by setting stop event."""
+        stop_event.set()
+
+    # Register signal handlers (Unix only)
+    if sys.platform != "win32":
+        loop.add_signal_handler(signal.SIGINT, handle_signal)
+        loop.add_signal_handler(signal.SIGTERM, handle_signal)
+
     try:
-        while True:
+        while not stop_event.is_set():
             # Collect data from panes
             try:
                 pane_data = await collect_all_panes(pane_names, config)
             except Exception as e:
                 console.print(f"[red]Error collecting data: {e}[/red]")
-                await asyncio.sleep(interval)
+                # Wait but check for stop signal
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(stop_event.wait(), timeout=interval)
                 continue
 
             if pane_data:
@@ -345,10 +358,17 @@ async def run_cli_continuous(
                     print("\033[2J\033[H", end="")  # Clear screen, move cursor to top
                     print(output, flush=True)
 
-            await asyncio.sleep(interval)
+            # Wait for interval but check for stop signal
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
 
     except asyncio.CancelledError:
-        return 0
+        pass
+    finally:
+        # Clean up signal handlers
+        if sys.platform != "win32":
+            loop.remove_signal_handler(signal.SIGINT)
+            loop.remove_signal_handler(signal.SIGTERM)
 
     return 0
 
@@ -381,10 +401,9 @@ def run_cli_mode(
 
     if once:
         return asyncio.run(run_cli_once(format_name, pane_names, config))
-    else:
-        # Continuous or streaming mode
-        try:
-            return asyncio.run(run_cli_continuous(format_name, pane_names, config, stream=stream))
-        except KeyboardInterrupt:
-            # Graceful exit on Ctrl+C
-            return 0
+    # Continuous or streaming mode
+    try:
+        return asyncio.run(run_cli_continuous(format_name, pane_names, config, stream=stream))
+    except KeyboardInterrupt:
+        # Graceful exit on Ctrl+C
+        return 0

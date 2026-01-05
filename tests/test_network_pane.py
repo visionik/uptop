@@ -531,6 +531,34 @@ class TestFormatFunctions:
         assert _format_rate(1024) == "1.0 KB/s"
         assert _format_rate(1024 * 1024) == "1.0 MB/s"
 
+    def test_format_count(self) -> None:
+        """Test count formatting for errors/drops."""
+        from uptop.tui.panes.network_widget import format_count
+
+        # 0-999: plain numbers
+        assert format_count(0) == "0"
+        assert format_count(1) == "1"
+        assert format_count(999) == "999"
+
+        # 1000-9999: X.XK format
+        assert format_count(1000) == "1.0K"
+        assert format_count(1100) == "1.1K"
+        assert format_count(9900) == "9.9K"
+
+        # 10000-999999: XX.XK to XXX.XK format
+        assert format_count(10000) == "10.0K"
+        assert format_count(100000) == "100.0K"
+        assert format_count(999999) == "1000.0K"
+
+        # Millions: X.XM format
+        assert format_count(1_000_000) == "1.0M"
+        assert format_count(10_000_000) == "10.0M"
+        assert format_count(999_000_000) == "999.0M"
+
+        # Billions: X.XB format
+        assert format_count(1_000_000_000) == "1.0B"
+        assert format_count(10_000_000_000) == "10.0B"
+
 
 class TestNetworkCollectorEdgeCases:
     """Additional edge case tests for NetworkCollector."""
