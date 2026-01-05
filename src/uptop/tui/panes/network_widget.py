@@ -140,8 +140,8 @@ class NetworkWidget(Widget):
         table.add_column("RX Now", key="rx_rate", width=7)
         table.add_column("TX Sum", key="tx_total", width=7)
         table.add_column("RX Sum", key="rx_total", width=7)
-        table.add_column("⚠", key="errors")
-        table.add_column("⇣", key="drops")
+        table.add_column("⚠", key="errors", width=7)
+        table.add_column("⇣", key="drops", width=7)
 
         # Set up summary table with same columns (no header)
         summary = self.query_one("#summary-table", DataTable)
@@ -153,8 +153,8 @@ class NetworkWidget(Widget):
         summary.add_column("rx_rate", width=7)
         summary.add_column("tx_total", width=7)
         summary.add_column("rx_total", width=7)
-        summary.add_column("errors")
-        summary.add_column("drops")
+        summary.add_column("errors", width=7)
+        summary.add_column("drops", width=7)
 
         # Populate with initial data if available
         if self.data is not None:
