@@ -357,6 +357,7 @@ class GridLayout(Container):
             "processes": "Processes",
             "network": "Network",
             "disk": "Disk",
+            "gpu": "GPU",
         }
         display_title = title_map.get(pane_pos.name, pane_pos.name.replace("_", " ").title())
 

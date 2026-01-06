@@ -3,8 +3,8 @@
 This module provides a sparkline widget for displaying historical values
 as a compact horizontal bar graph using Unicode block characters.
 
-The sparkline uses 9 levels of block characters to represent values:
-" ▁▂▃▄▅▆▇█" (space for 0, full block for maximum)
+The sparkline uses 8 levels of block characters to represent values:
+"▁▂▃▄▅▆▇█" (lowest block for minimum, full block for maximum)
 
 Color coding is based on the most recent value:
 - Green: 0-50% (low usage)
@@ -21,8 +21,8 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widget import Widget
 
-# Unicode block characters for sparkline (9 levels: 0-8)
-SPARK_CHARS = " ▁▂▃▄▅▆▇█"
+# Unicode block characters for sparkline (8 levels: 0-7)
+SPARK_CHARS = "▁▂▃▄▅▆▇█"
 
 # Color thresholds for usage display
 THRESHOLD_LOW = 50.0  # 0-50% is green (low usage)
@@ -43,7 +43,7 @@ def value_to_char(value: float, min_val: float = 0.0, max_val: float = 100.0) ->
     """
     if max_val == min_val:
         # Avoid division by zero; if range is zero, return middle char
-        return SPARK_CHARS[4]
+        return SPARK_CHARS[3]
 
     # Clamp value to range
     value = max(min_val, min(max_val, value))
@@ -51,9 +51,9 @@ def value_to_char(value: float, min_val: float = 0.0, max_val: float = 100.0) ->
     # Normalize to 0-1 range
     normalized = (value - min_val) / (max_val - min_val)
 
-    # Map to character index (0-8)
-    index = int(normalized * 8)
-    index = max(0, min(8, index))
+    # Map to character index (0-7)
+    index = int(normalized * 7.999)
+    index = max(0, min(7, index))
 
     return SPARK_CHARS[index]
 
@@ -267,10 +267,10 @@ class Sparkline(Widget):
             char = value_to_char(value, self.min_value, self.max_value)
             chars.append(char)
 
-        # Pad with spaces if we have fewer values than display width
+        # Pad with underscores if we have fewer values than display width
         padding = display_width - len(chars)
         if padding > 0:
-            chars = [" "] * padding + chars
+            chars = ["_"] * padding + chars
 
         # Apply color to the sparkline
         sparkline_str = "".join(chars)

@@ -22,15 +22,20 @@ from rich.console import RenderableType
 from rich.style import Style
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Label, Static
 
+from uptop.models.base import DisplayMode
 from uptop.tui.widgets.sparkline import Sparkline
 
 if TYPE_CHECKING:
     from uptop.plugins.cpu import CPUData
+
+# Partial block characters for high-resolution progress bar (8 levels per character)
+# From empty to full: space, then ▏▎▍▌▋▊▉█
+PROGRESS_CHARS = " ▏▎▍▌▋▊▉█"
 
 
 # Color thresholds for CPU usage
@@ -53,6 +58,87 @@ def get_usage_color(usage_percent: float) -> str:
     if usage_percent < THRESHOLD_MEDIUM:
         return "yellow"
     return "red"
+
+
+def render_hires_bar(percent: float, width: int) -> str:
+    """Render a high-resolution progress bar using partial block characters.
+
+    Uses 8 sub-character levels for smooth progress display.
+
+    Args:
+        percent: Progress percentage (0-100)
+        width: Total width in characters
+
+    Returns:
+        String representation of the progress bar
+    """
+    if width <= 0:
+        return ""
+
+    # Calculate how many "eighths" are filled
+    total_eighths = width * 8
+    filled_eighths = int((percent / 100.0) * total_eighths)
+    filled_eighths = max(0, min(total_eighths, filled_eighths))
+
+    # Full blocks
+    full_blocks = filled_eighths // 8
+    # Partial block (0-7 eighths)
+    partial_eighths = filled_eighths % 8
+
+    # Build the bar
+    bar = "█" * full_blocks
+    if partial_eighths > 0 and full_blocks < width:
+        bar += PROGRESS_CHARS[partial_eighths]
+    # Pad with spaces
+    bar += " " * (width - len(bar))
+
+    return bar
+
+
+class HiResProgressBar(Static):
+    """A high-resolution progress bar using partial block characters.
+
+    Provides 8 sub-character levels of precision for smooth progress display.
+    """
+
+    DEFAULT_CSS: ClassVar[str] = """
+    HiResProgressBar {
+        width: 1fr;
+        height: 1;
+    }
+    """
+
+    percent: reactive[float] = reactive(0.0)
+
+    def __init__(
+        self,
+        percent: float = 0.0,
+        *,
+        name: str | None = None,
+        id: str | None = None,  # noqa: A002
+        classes: str | None = None,
+    ) -> None:
+        """Initialize the high-resolution progress bar.
+
+        Args:
+            percent: Initial percentage (0-100)
+            name: Widget name
+            id: Widget ID
+            classes: CSS classes
+        """
+        super().__init__(name=name, id=id, classes=classes)
+        self.percent = percent
+
+    def render(self) -> RenderableType:
+        """Render the progress bar."""
+        # Use container width for the bar
+        width = self.size.width if self.size.width > 0 else 20
+        bar = render_hires_bar(self.percent, width)
+        return Text(bar, style=get_usage_color(self.percent))
+
+    def watch_percent(self, new_percent: float) -> None:
+        """React to percent changes."""
+        self.refresh()
 
 
 def get_usage_style(usage_percent: float) -> Style:
@@ -134,12 +220,11 @@ class CPUProgressBar(Static):
         return bar
 
 
-class CoreUsageRow(Static):
+class CoreUsageRow(Widget):
     """A single row displaying one CPU core's usage.
 
-    Shows: Core ID, usage percentage, mini progress bar.
-
-    This is designed for compact display when there are many cores.
+    Shows: Core ID (3 chars), usage percentage (2 digits), HiResProgressBar.
+    Format: "  n: xx% [progressbar...]"
     """
 
     DEFAULT_CSS: ClassVar[
@@ -152,27 +237,22 @@ class CoreUsageRow(Static):
     }
 
     CoreUsageRow .core-label {
-        width: 8;
-        text-align: left;
-    }
-
-    CoreUsageRow .core-percent {
-        width: 6;
-        text-align: right;
-    }
-
-    CoreUsageRow .core-bar {
         width: auto;
+    }
+
+    CoreUsageRow HiResProgressBar {
+        width: 1fr;
+        height: 1;
         margin-left: 1;
     }
     """
+
+    usage_percent: reactive[float] = reactive(0.0)
 
     def __init__(
         self,
         core_id: int,
         usage_percent: float,
-        freq_mhz: float | None = None,
-        temp_celsius: float | None = None,
         *,
         name: str | None = None,
         id: str | None = None,  # noqa: A002
@@ -183,8 +263,6 @@ class CoreUsageRow(Static):
         Args:
             core_id: CPU core identifier
             usage_percent: Core usage percentage (0-100)
-            freq_mhz: Core frequency in MHz (optional)
-            temp_celsius: Core temperature in Celsius (optional)
             name: Widget name
             id: Widget ID
             classes: CSS classes
@@ -192,51 +270,13 @@ class CoreUsageRow(Static):
         super().__init__(name=name, id=id, classes=classes)
         self.core_id = core_id
         self.usage_percent = usage_percent
-        self.freq_mhz = freq_mhz
-        self.temp_celsius = temp_celsius
 
-    def render(self) -> RenderableType:
-        """Render the core usage row.
-
-        Returns:
-            A Rich Text object with core info and mini bar
-        """
-        color = get_usage_color(self.usage_percent)
-
-        # Create the row content
-        row = Text()
-
-        # Core label
-        row.append(f"Core {self.core_id:2d} ", style="dim")
-
-        # Usage percentage
-        row.append(f"{self.usage_percent:5.1f}%", style=color)
-
-        # Mini progress bar (10 chars wide)
-        bar_width = 10
-        filled = int((self.usage_percent / 100.0) * bar_width)
-        filled = max(0, min(filled, bar_width))
-        empty = bar_width - filled
-
-        row.append(" [", style="dim")
-        row.append("=" * filled, style=color)
-        row.append(" " * empty, style="dim")
-        row.append("]", style="dim")
-
-        # Optional: frequency
-        if self.freq_mhz is not None:
-            row.append(f" {self.freq_mhz:4.0f}MHz", style="dim")
-
-        # Optional: temperature
-        if self.temp_celsius is not None:
-            temp_color = (
-                "green"
-                if self.temp_celsius < 60
-                else ("yellow" if self.temp_celsius < 80 else "red")
-            )
-            row.append(f" {self.temp_celsius:4.1f}C", style=temp_color)
-
-        return row
+    def compose(self) -> ComposeResult:
+        """Compose the core usage row with label and progress bar."""
+        # Format: "  n: xx%" where n is 3-char padded, xx is 2-digit percent
+        label_text = f"{self.core_id:3d}: {int(self.usage_percent):02d}%"
+        yield Label(label_text, classes="core-label")
+        yield HiResProgressBar(percent=self.usage_percent, id=f"core-bar-{self.core_id}")
 
 
 class CPUWidget(Widget):
@@ -279,6 +319,18 @@ class CPUWidget(Widget):
         height: 1;
         margin-bottom: 0;
         padding: 0 1;
+        layout: horizontal;
+        width: 100%;
+    }
+
+    CPUWidget .total-row .total-label {
+        width: auto;
+    }
+
+    CPUWidget .total-row HiResProgressBar {
+        width: 1fr;
+        height: 1;
+        margin-left: 1;
     }
 
     CPUWidget .sparkline-row {
@@ -305,9 +357,20 @@ class CPUWidget(Widget):
         width: 100%;
         padding: 0 1;
     }
+
+    CPUWidget .core-row {
+        width: 100%;
+        height: 1;
+        layout: horizontal;
+    }
+
+    CPUWidget .core-row CoreUsageRow {
+        width: 1fr;
+    }
     """
 
     cpu_data: reactive[CPUData | None] = reactive(None)
+    _display_mode: reactive[DisplayMode] = reactive(DisplayMode.MINIMIZED)
 
     # Default history size - large enough to fill wide terminals
     DEFAULT_HISTORY_SIZE: ClassVar[int] = 200
@@ -362,6 +425,30 @@ class CPUWidget(Widget):
             yield Label("Waiting for CPU data...", classes="no-data")
             return
 
+        match self._display_mode:
+            case DisplayMode.MICRO:
+                # Ultra-compact: single line with total CPU %
+                usage = self.cpu_data.total_usage_percent
+                yield Label(f"CPU {int(usage)}%", classes="micro-label")
+
+            case DisplayMode.MINIMIZED:
+                # Current implementation - sparkline + total + cores + load/freq
+                yield from self._compose_minimized()
+
+            case DisplayMode.MEDIUM:
+                # Same as minimized for now (placeholder for future enhancements)
+                yield from self._compose_minimized()
+
+            case DisplayMode.MAXIMIZED:
+                # Same as minimized for now (placeholder for future enhancements)
+                yield from self._compose_minimized()
+
+    def _compose_minimized(self) -> ComposeResult:
+        """Compose the minimized layout (also used for MEDIUM and MAXIMIZED).
+
+        Yields:
+            Child widgets for minimized display mode
+        """
         # Sparkline for CPU usage history (first row, full width, no label)
         yield Sparkline(
             values=list(self._usage_history),
@@ -374,8 +461,38 @@ class CPUWidget(Widget):
             classes="sparkline-row",
         )
 
-        # Total CPU usage section
-        yield Static(self._render_total_usage(), classes="total-row")
+        # Total CPU usage section: "All: bb% [HiResProgressBar]"
+        usage = self.cpu_data.total_usage_percent
+        with Horizontal(classes="total-row", id="total-row"):
+            yield Label(
+                f"All: {int(usage):02d}%",
+                classes="total-label",
+            )
+            yield HiResProgressBar(
+                percent=usage,
+                id="total-progress",
+            )
+
+        # Per-core usage section (two columns)
+        if self.cpu_data.cores:
+            cores = self.cpu_data.cores
+            with Vertical(classes="cores-container"):
+                # Pair cores into rows of 2
+                for i in range(0, len(cores), 2):
+                    with Horizontal(classes="core-row"):
+                        # First core in pair
+                        yield CoreUsageRow(
+                            core_id=cores[i].id,
+                            usage_percent=cores[i].usage_percent,
+                            id=f"core-{cores[i].id}",
+                        )
+                        # Second core in pair (if exists)
+                        if i + 1 < len(cores):
+                            yield CoreUsageRow(
+                                core_id=cores[i + 1].id,
+                                usage_percent=cores[i + 1].usage_percent,
+                                id=f"core-{cores[i + 1].id}",
+                            )
 
         # Load averages
         yield Static(self._render_load_averages(), classes="load-avg-row")
@@ -385,49 +502,29 @@ class CPUWidget(Widget):
         if freq_text:
             yield Static(freq_text, classes="freq-row")
 
-        # Per-core usage section
-        if self.cpu_data.cores:
-            yield Label("Per-Core Usage:", classes="section-header")
-            with Vertical(classes="cores-container"):
-                for core in self.cpu_data.cores:
-                    yield CoreUsageRow(
-                        core_id=core.id,
-                        usage_percent=core.usage_percent,
-                        freq_mhz=core.freq_mhz,
-                        temp_celsius=core.temp_celsius,
-                        id=f"core-{core.id}",
-                    )
+    def _get_usage_color_class(self, usage_percent: float) -> str:
+        """Get CSS class for usage color.
 
-    def _render_total_usage(self) -> RenderableType:
-        """Render the total CPU usage line.
+        Args:
+            usage_percent: CPU usage percentage
 
         Returns:
-            Rich Text with total usage and progress bar
+            CSS class name: '', 'medium', or 'high'
         """
-        if self.cpu_data is None:
-            return Text("No data")
+        if usage_percent < THRESHOLD_LOW:
+            return ""  # Default green
+        if usage_percent < THRESHOLD_MEDIUM:
+            return "medium"
+        return "high"
 
-        usage = self.cpu_data.total_usage_percent
-        color = get_usage_color(usage)
-
-        result = Text()
-        result.append("Total: ", style="bold")
-        result.append(f"{usage:5.1f}%", style=color + " bold")
-
-        # Progress bar
-        bar_width = 30
-        filled = int((usage / 100.0) * bar_width)
-        filled = max(0, min(filled, bar_width))
-        empty = bar_width - filled
-
-        result.append(" [", style="dim")
-        result.append("=" * filled, style=color)
-        result.append(" " * empty, style="dim")
-        result.append("]", style="dim")
-
-        result.append(f" ({self.cpu_data.core_count} cores)", style="dim")
-
-        return result
+    def on_mount(self) -> None:
+        """Initialize progress bar on mount."""
+        if self.cpu_data is not None:
+            try:
+                progress = self.query_one("#total-progress", HiResProgressBar)
+                progress.percent = self.cpu_data.total_usage_percent
+            except Exception:
+                pass
 
     def _render_load_averages(self) -> RenderableType:
         """Render the load averages line.
@@ -515,6 +612,18 @@ class CPUWidget(Widget):
             except Exception:
                 pass  # Sparkline may not exist yet
 
+            # Update progress bar and label
+            if new_data is not None:
+                try:
+                    progress = self.query_one("#total-progress", HiResProgressBar)
+                    progress.percent = new_data.total_usage_percent
+
+                    # Update label
+                    label = self.query_one(".total-label", Label)
+                    label.update(f"All: {int(new_data.total_usage_percent):02d}%")
+                except Exception:
+                    pass
+
             # Only do full recompose if data changed significantly
             if new_data is not None and self._has_significant_change(new_data):
                 self._last_total_usage = new_data.total_usage_percent
@@ -522,7 +631,7 @@ class CPUWidget(Widget):
             elif new_data is None:
                 self.refresh(recompose=True)
 
-    def update_data(self, data: CPUData) -> None:
+    def update_data(self, data: CPUData, mode: DisplayMode | None = None) -> None:
         """Update the widget with new CPU data.
 
         This is a convenience method for updating the display.
@@ -530,7 +639,11 @@ class CPUWidget(Widget):
 
         Args:
             data: New CPU data to display
+            mode: Optional display mode to switch to
         """
+        if mode is not None and mode != self._display_mode:
+            self._display_mode = mode
+            self.recompose()
         self.cpu_data = data
 
     def clear_history(self) -> None:

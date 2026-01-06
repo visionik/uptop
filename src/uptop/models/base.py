@@ -47,25 +47,28 @@ class DisplayMode(str, Enum):
     """Display density modes for panes.
 
     Controls how much information is shown in each pane:
-    - MINIMUM: Essential information only, compact display
+    - MICRO: Ultra-compact, single line or icon only
+    - MINIMIZED: Essential information only, very compact display
     - MEDIUM: Standard display with key details (default)
-    - MAXIMUM: Full detail display with all available information
+    - MAXIMIZED: Full detail display with all available information
 
     Attributes:
-        MINIMUM: Compact view showing only critical metrics
+        MICRO: Smallest possible view, just key metric or icon
+        MINIMIZED: Compact view showing only critical metrics
         MEDIUM: Balanced view with important details (default)
-        MAXIMUM: Full view with all available information
+        MAXIMIZED: Full view with all available information
     """
 
-    MINIMUM = "minimum"
+    MICRO = "micro"
+    MINIMIZED = "minimized"
     MEDIUM = "medium"
-    MAXIMUM = "maximum"
+    MAXIMIZED = "maximized"
 
     def next(self) -> "DisplayMode":
         """Cycle to the next display mode.
 
         Returns:
-            The next mode in the cycle: MINIMUM -> MEDIUM -> MAXIMUM -> MINIMUM
+            The next mode in the cycle: MICRO -> MINIMIZED -> MEDIUM -> MAXIMIZED -> MICRO
         """
         modes = list(DisplayMode)
         idx = (modes.index(self) + 1) % len(modes)

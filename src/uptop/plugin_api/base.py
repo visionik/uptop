@@ -190,7 +190,7 @@ class PanePlugin(PluginBase):
             data: The MetricData from the most recent collection
             size: Optional tuple of (width, height) in terminal cells for the pane.
                   If None, the plugin should use reasonable defaults.
-            mode: Optional DisplayMode (MINIMUM, MEDIUM, MAXIMUM).
+            mode: Optional DisplayMode (MICRO, MINIMIZED, MEDIUM, MAXIMIZED).
                   If None, defaults to MEDIUM behavior.
 
         Returns:

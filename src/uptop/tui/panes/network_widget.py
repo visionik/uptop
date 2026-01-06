@@ -13,8 +13,9 @@ from typing import ClassVar
 from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import DataTable
+from textual.widgets import DataTable, Label
 
+from uptop.models.base import DisplayMode
 from uptop.plugins.network import NetworkData, NetworkInterfaceData
 
 
@@ -99,9 +100,16 @@ class NetworkWidget(Widget):
     NetworkWidget #summary-table.has-errors {
         color: $warning;
     }
+
+    NetworkWidget .micro-label {
+        width: 100%;
+        height: 100%;
+        content-align: center middle;
+    }
     """
 
     data: reactive[NetworkData | None] = reactive(None)
+    _display_mode: reactive[DisplayMode] = reactive(DisplayMode.MINIMIZED)
 
     def __init__(
         self,
@@ -123,13 +131,68 @@ class NetworkWidget(Widget):
         self.data = data
 
     def compose(self) -> ComposeResult:
-        """Compose the widget with a data table and summary row."""
+        """Compose the widget based on the current display mode."""
+        match self._display_mode:
+            case DisplayMode.MICRO:
+                # Ultra-compact: single line with TX/RX rates
+                if self.data and self.data.total_rate:
+                    tx = self._format_rate(self.data.total_rate.bytes_sent_per_sec)
+                    rx = self._format_rate(self.data.total_rate.bytes_recv_per_sec)
+                    yield Label(f"Net ↑{tx} ↓{rx}", classes="micro-label")
+                else:
+                    yield Label("Net ↑-- ↓--", classes="micro-label")
+
+            case DisplayMode.MINIMIZED:
+                # Current implementation - two tables
+                yield from self._compose_minimized()
+
+            case DisplayMode.MEDIUM:
+                # Same as minimized for now
+                yield from self._compose_minimized()
+
+            case DisplayMode.MAXIMIZED:
+                # Same as minimized for now
+                yield from self._compose_minimized()
+
+    def _compose_minimized(self) -> ComposeResult:
+        """Compose the minimized view with data tables."""
         yield DataTable(id="interface-table")
         yield DataTable(id="summary-table")
 
+    def _format_rate(self, bytes_per_sec: float) -> str:
+        """Format bytes/sec to human readable rate.
+
+        Args:
+            bytes_per_sec: Rate in bytes per second
+
+        Returns:
+            Formatted string like "1.2M", "456K", "0"
+        """
+        if bytes_per_sec == 0:
+            return "0"
+
+        # Convert to appropriate unit
+        abs_val = abs(bytes_per_sec)
+
+        if abs_val < 1024:
+            return f"{int(bytes_per_sec)}"
+        if abs_val < 1024 * 1024:
+            return f"{bytes_per_sec / 1024:.1f}K"
+        if abs_val < 1024 * 1024 * 1024:
+            return f"{bytes_per_sec / (1024 * 1024):.1f}M"
+        return f"{bytes_per_sec / (1024 * 1024 * 1024):.1f}G"
+
     def on_mount(self) -> None:
         """Set up the data table when the widget is mounted."""
-        table = self.query_one("#interface-table", DataTable)
+        # Only set up tables if not in MICRO mode
+        if self._display_mode == DisplayMode.MICRO:
+            return
+
+        try:
+            table = self.query_one("#interface-table", DataTable)
+        except Exception:
+            return  # Tables don't exist in this mode
+
         table.cursor_type = "row"
         table.zebra_stripes = True
 
@@ -309,12 +372,16 @@ class NetworkWidget(Widget):
         else:
             summary.remove_class("has-errors")
 
-    def update_data(self, data: NetworkData) -> None:
+    def update_data(self, data: NetworkData, mode: DisplayMode | None = None) -> None:
         """Update the widget with new network data.
 
         This is the primary method for updating the widget display.
 
         Args:
             data: The new NetworkData to display
+            mode: Optional display mode to switch to
         """
+        if mode is not None and mode != self._display_mode:
+            self._display_mode = mode
+            self.recompose()
         self.data = data

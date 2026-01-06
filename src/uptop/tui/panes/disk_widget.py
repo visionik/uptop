@@ -1,9 +1,9 @@
 """Disk Widget for uptop TUI.
 
 This module provides a Textual widget for displaying disk/mount information:
+- Disk I/O statistics table (read/write bytes/sec, IOPS)
 - Per-mount filesystem usage with progress bars
 - Color-coded usage indicators (green/yellow/red)
-- Disk I/O statistics (read/write bytes/sec, IOPS)
 - Human-readable size formatting
 """
 
@@ -15,47 +15,38 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Label, ProgressBar, Static
+from textual.widgets import DataTable, Label, ProgressBar, Static
+
+from uptop.models.base import DisplayMode
 
 if TYPE_CHECKING:
-    from uptop.plugins.disk import DiskData, DiskIOStats, PartitionInfo
+    from uptop.plugins.disk import DiskData, PartitionInfo
 
 
 def format_bytes(num_bytes: int | float) -> str:
-    """Format bytes to human-readable string.
+    """Format bytes value with appropriate unit (KB or larger).
+
+    Matches network widget formatting style:
+    - Always converts to at least KB (never shows plain bytes)
+    - No space between number and unit (e.g., "1.2GB" not "1.2 GB")
 
     Args:
         num_bytes: Number of bytes
 
     Returns:
-        Human-readable string (e.g., "1.5 GB", "256 MB")
+        Formatted string like "1.2GB" or "456KB"
     """
     if num_bytes < 0:
-        return "0 B"
+        num_bytes = 0
 
-    units = ["B", "KB", "MB", "GB", "TB", "PB"]
-    unit_index = 0
-    size = float(num_bytes)
+    # Always convert to at least KB
+    kb_val = num_bytes / 1024.0
 
-    while size >= 1024.0 and unit_index < len(units) - 1:
-        size /= 1024.0
-        unit_index += 1
-
-    if unit_index == 0:
-        return f"{int(size)} {units[unit_index]}"
-    return f"{size:.1f} {units[unit_index]}"
-
-
-def format_rate(bytes_per_sec: float) -> str:
-    """Format bytes per second to human-readable rate string.
-
-    Args:
-        bytes_per_sec: Bytes per second
-
-    Returns:
-        Human-readable rate string (e.g., "1.5 MB/s")
-    """
-    return f"{format_bytes(bytes_per_sec)}/s"
+    for unit in ["KB", "MB", "GB", "TB"]:
+        if abs(kb_val) < 1024.0:
+            return f"{kb_val:.1f}{unit}"
+        kb_val /= 1024.0
+    return f"{kb_val:.1f}PB"
 
 
 def get_usage_color(percent: float) -> str:
@@ -174,146 +165,29 @@ class PartitionDisplay(Static):
         )
 
 
-class IOStatsDisplay(Static):
-    """Display widget for disk I/O statistics.
+def format_iops(iops: float) -> str:
+    """Format IOPS value with appropriate suffix.
 
-    Shows read/write rates and IOPS in a compact format.
+    Args:
+        iops: IOPS value
+
+    Returns:
+        Formatted string (e.g., "1.2K", "500")
     """
-
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
-    IOStatsDisplay {
-        width: 100%;
-        height: auto;
-        padding: 0 1;
-        border-top: solid $primary-darken-2;
-        margin-top: 1;
-    }
-
-    IOStatsDisplay .io-header {
-        width: 100%;
-        height: 1;
-        text-style: bold;
-        color: $text;
-    }
-
-    IOStatsDisplay .io-stats-line {
-        width: 100%;
-        height: 1;
-        color: $text-muted;
-    }
-
-    IOStatsDisplay .read-stats {
-        color: $success;
-    }
-
-    IOStatsDisplay .write-stats {
-        color: $warning;
-    }
-    """
-
-    def __init__(
-        self,
-        io_stats: list[DiskIOStats],
-        prev_io_stats: list[DiskIOStats] | None = None,
-        interval: float = 1.0,
-        *,
-        name: str | None = None,
-        id: str | None = None,  # noqa: A002
-        classes: str | None = None,
-    ) -> None:
-        """Initialize the I/O stats display.
-
-        Args:
-            io_stats: Current I/O statistics
-            prev_io_stats: Previous I/O statistics for rate calculation
-            interval: Time interval in seconds between samples
-            name: Widget name
-            id: Widget ID
-            classes: CSS classes
-        """
-        super().__init__(name=name, id=id, classes=classes)
-        self._io_stats = io_stats
-        self._prev_io_stats = prev_io_stats
-        self._interval = interval
-
-    def _calculate_rates(
-        self,
-    ) -> dict[str, dict[str, float]]:
-        """Calculate I/O rates from current and previous stats.
-
-        Returns:
-            Dictionary mapping device names to their rates
-        """
-        rates: dict[str, dict[str, float]] = {}
-
-        if not self._prev_io_stats:
-            # No previous stats, can't calculate rates
-            return rates
-
-        # Build lookup for previous stats
-        prev_lookup = {stat.device: stat for stat in self._prev_io_stats}
-
-        for stat in self._io_stats:
-            prev = prev_lookup.get(stat.device)
-            if prev:
-                # Calculate byte rates
-                read_bytes_rate = max(0, (stat.read_bytes - prev.read_bytes)) / self._interval
-                write_bytes_rate = max(0, (stat.write_bytes - prev.write_bytes)) / self._interval
-
-                # Calculate IOPS
-                read_iops = max(0, (stat.read_count - prev.read_count)) / self._interval
-                write_iops = max(0, (stat.write_count - prev.write_count)) / self._interval
-
-                rates[stat.device] = {
-                    "read_bytes_rate": read_bytes_rate,
-                    "write_bytes_rate": write_bytes_rate,
-                    "read_iops": read_iops,
-                    "write_iops": write_iops,
-                }
-
-        return rates
-
-    def compose(self) -> ComposeResult:
-        """Compose the I/O stats display."""
-        if not self._io_stats:
-            return
-
-        yield Label("Disk I/O", classes="io-header")
-
-        rates = self._calculate_rates()
-
-        for stat in self._io_stats:
-            device_rates = rates.get(stat.device)
-            if device_rates:
-                read_rate = format_rate(device_rates["read_bytes_rate"])
-                write_rate = format_rate(device_rates["write_bytes_rate"])
-                read_iops = int(device_rates["read_iops"])
-                write_iops = int(device_rates["write_iops"])
-
-                yield Label(
-                    f"{stat.device}: R: {read_rate} ({read_iops} IOPS) | "
-                    f"W: {write_rate} ({write_iops} IOPS)",
-                    classes="io-stats-line",
-                )
-            else:
-                # Show cumulative totals if no rates available
-                read_total = format_bytes(stat.read_bytes)
-                write_total = format_bytes(stat.write_bytes)
-                yield Label(
-                    f"{stat.device}: R: {read_total} (total) | W: {write_total} (total)",
-                    classes="io-stats-line",
-                )
+    if iops < 1000:
+        return str(int(iops))
+    if iops < 1_000_000:
+        return f"{iops / 1000:.1f}K"
+    return f"{iops / 1_000_000:.1f}M"
 
 
 class DiskWidget(Widget):
-    """Main disk widget displaying filesystem usage and I/O stats.
+    """Main disk widget displaying I/O stats table and filesystem usage.
 
     Displays:
+    - Disk I/O statistics table (similar to network widget)
     - Per-mount filesystem usage with progress bars
     - Color-coded usage indicators (green < 70%, yellow 70-90%, red > 90%)
-    - Disk I/O statistics when available
 
     Attributes:
         data: The current DiskData to display
@@ -326,7 +200,7 @@ class DiskWidget(Widget):
     ] = """
     DiskWidget {
         width: 100%;
-        height: auto;
+        height: 100%;
         padding: 0;
     }
 
@@ -337,9 +211,17 @@ class DiskWidget(Widget):
         color: $text-muted;
     }
 
+    DiskWidget #io-table {
+        width: 100%;
+        height: auto;
+        max-height: 50%;
+        scrollbar-size: 1 1;
+    }
+
     DiskWidget .partitions-container {
         width: 100%;
         height: auto;
+        padding-top: 1;
     }
     """
 
@@ -347,6 +229,7 @@ class DiskWidget(Widget):
     data: reactive[DiskData | None] = reactive(None)
     prev_data: reactive[DiskData | None] = reactive(None)
     refresh_interval: reactive[float] = reactive(5.0)
+    _display_mode: reactive[DisplayMode] = reactive(DisplayMode.MINIMIZED)
 
     def __init__(
         self,
@@ -370,37 +253,211 @@ class DiskWidget(Widget):
         self.data = data
         self.prev_data = None
         self.refresh_interval = refresh_interval
+        self._io_rates: dict[str, dict[str, float]] = {}
 
     def compose(self) -> ComposeResult:
         """Compose the disk widget."""
-        if self.data is None:
-            yield Label("No disk data available", classes="no-data")
+        match self._display_mode:
+            case DisplayMode.MICRO:
+                # Ultra-compact: single line with primary disk usage %
+                if self.data and self.data.partitions:
+                    # Find root partition or first partition
+                    root = next((p for p in self.data.partitions if p.mountpoint == "/"), None)
+                    if root:
+                        yield Label(f"Disk {int(root.percent)}%", classes="micro-label")
+                    else:
+                        p = self.data.partitions[0]
+                        yield Label(f"Disk {int(p.percent)}%", classes="micro-label")
+                else:
+                    yield Label("Disk --", classes="micro-label")
+
+            case DisplayMode.MINIMIZED:
+                # Current implementation - I/O table + partitions
+                yield from self._compose_minimized()
+
+            case DisplayMode.MEDIUM:
+                # Same as minimized for now
+                yield from self._compose_minimized()
+
+            case DisplayMode.MAXIMIZED:
+                # Same as minimized for now
+                yield from self._compose_minimized()
+
+    def _compose_minimized(self) -> ComposeResult:
+        """Compose the minimized view with I/O table and partitions."""
+        # I/O stats table (first)
+        yield DataTable(id="io-table")
+
+        # Partitions container (second)
+        yield Vertical(id="partitions-container", classes="partitions-container")
+
+    def on_mount(self) -> None:
+        """Set up the data table when the widget is mounted."""
+        table = self.query_one("#io-table", DataTable)
+        table.cursor_type = "row"
+        table.zebra_stripes = True
+
+        # Add columns matching network widget style
+        table.add_column("Disk", key="device", width=10)
+        table.add_column("Read/s", key="read_rate", width=9)
+        table.add_column("Write/s", key="write_rate", width=9)
+        table.add_column("R IOPS", key="read_iops", width=7)
+        table.add_column("W IOPS", key="write_iops", width=7)
+        table.add_column("Read Tot", key="read_total", width=9)
+        table.add_column("Write Tot", key="write_total", width=9)
+
+        # Populate with initial data if available
+        if self.data is not None:
+            self._update_io_table()
+            self._update_partitions()
+
+    def _calculate_rates(self) -> dict[str, dict[str, float]]:
+        """Calculate I/O rates from current and previous stats.
+
+        Returns:
+            Dictionary mapping device names to their rates
+        """
+        rates: dict[str, dict[str, float]] = {}
+
+        if not self.data or not self.data.io_stats:
+            return rates
+
+        if not self.prev_data or not self.prev_data.io_stats:
+            # No previous stats, can't calculate rates
+            return rates
+
+        # Build lookup for previous stats
+        prev_lookup = {stat.device: stat for stat in self.prev_data.io_stats}
+
+        for stat in self.data.io_stats:
+            prev = prev_lookup.get(stat.device)
+            if prev:
+                interval = self.refresh_interval
+                # Calculate byte rates
+                read_bytes_rate = max(0, (stat.read_bytes - prev.read_bytes)) / interval
+                write_bytes_rate = max(0, (stat.write_bytes - prev.write_bytes)) / interval
+
+                # Calculate IOPS
+                read_iops = max(0, (stat.read_count - prev.read_count)) / interval
+                write_iops = max(0, (stat.write_count - prev.write_count)) / interval
+
+                rates[stat.device] = {
+                    "read_bytes_rate": read_bytes_rate,
+                    "write_bytes_rate": write_bytes_rate,
+                    "read_iops": read_iops,
+                    "write_iops": write_iops,
+                }
+
+        return rates
+
+    def _has_activity(self, device: str) -> bool:
+        """Check if a disk has recent I/O activity.
+
+        Args:
+            device: Device name to check
+
+        Returns:
+            True if the device has non-zero rates
+        """
+        rates = self._io_rates.get(device, {})
+        return (
+            rates.get("read_bytes_rate", 0) > 0
+            or rates.get("write_bytes_rate", 0) > 0
+        )
+
+    def _update_io_table(self) -> None:
+        """Update the I/O stats table with current data."""
+        if self.data is None or not self.data.io_stats:
             return
 
-        # Partitions container
-        with Vertical(classes="partitions-container"):
-            for partition in self.data.partitions:
-                yield PartitionDisplay(partition)
+        try:
+            table = self.query_one("#io-table", DataTable)
+        except Exception:
+            return  # Widget not ready
 
-        # I/O stats (if available)
-        if self.data.io_stats:
-            prev_io_stats = self.prev_data.io_stats if self.prev_data else None
-            yield IOStatsDisplay(
-                self.data.io_stats,
-                prev_io_stats=prev_io_stats,
-                interval=self.refresh_interval,
+        # Calculate rates
+        self._io_rates = self._calculate_rates()
+
+        # Save scroll position and cursor before clearing
+        saved_scroll_y = table.scroll_y
+        saved_cursor_row = table.cursor_row
+
+        # Clear existing rows
+        table.clear()
+
+        # Sort disks: active disks first, then by name
+        sorted_stats = sorted(
+            self.data.io_stats,
+            key=lambda x: (not self._has_activity(x.device), x.device),
+        )
+
+        # Add rows for each disk
+        for stat in sorted_stats:
+            rates = self._io_rates.get(stat.device, {})
+
+            read_rate = format_bytes(rates.get("read_bytes_rate", 0))
+            write_rate = format_bytes(rates.get("write_bytes_rate", 0))
+            read_iops = format_iops(rates.get("read_iops", 0))
+            write_iops = format_iops(rates.get("write_iops", 0))
+            read_total = format_bytes(stat.read_bytes)
+            write_total = format_bytes(stat.write_bytes)
+
+            table.add_row(
+                stat.device,
+                read_rate.rjust(9),
+                write_rate.rjust(9),
+                read_iops.rjust(7),
+                write_iops.rjust(7),
+                read_total.rjust(9),
+                write_total.rjust(9),
+                key=stat.device,
             )
 
-    def update_data(self, new_data: DiskData) -> None:
+        # Restore scroll position and cursor after layout completes
+        row_count = table.row_count
+        if row_count > 0 and (saved_cursor_row is not None or saved_scroll_y > 0):
+            def restore_scroll() -> None:
+                """Restore scroll position after layout."""
+                if saved_cursor_row is not None and table.row_count > 0:
+                    target_row = min(saved_cursor_row, table.row_count - 1)
+                    table.move_cursor(row=target_row)
+                if saved_scroll_y > 0:
+                    table.scroll_y = saved_scroll_y
+
+            self.call_after_refresh(restore_scroll)
+
+    def _update_partitions(self) -> None:
+        """Update the partitions display."""
+        if self.data is None:
+            return
+
+        try:
+            container = self.query_one("#partitions-container", Vertical)
+        except Exception:
+            return  # Widget not ready
+
+        # Clear and repopulate partitions
+        container.remove_children()
+        for partition in self.data.partitions:
+            container.mount(PartitionDisplay(partition))
+
+    def update_data(self, new_data: DiskData, mode: DisplayMode | None = None) -> None:
         """Update the widget with new disk data.
 
         Args:
             new_data: New DiskData to display
+            mode: Optional display mode to switch to
         """
+        if mode is not None and mode != self._display_mode:
+            self._display_mode = mode
+            self.recompose()
         # Store current data as previous for rate calculations
         self.prev_data = self.data
         self.data = new_data
-        self.refresh(recompose=True)
+
+        if self.is_mounted:
+            self._update_io_table()
+            self._update_partitions()
 
     def watch_data(self, new_data: DiskData | None) -> None:
         """React to data changes.
@@ -408,5 +465,6 @@ class DiskWidget(Widget):
         Args:
             new_data: The new DiskData value
         """
-        if self.is_mounted:
-            self.refresh(recompose=True)
+        if self.is_mounted and new_data is not None:
+            self._update_io_table()
+            self._update_partitions()

@@ -3,6 +3,7 @@
 This module provides pane widgets that display metric data:
 - CPUWidget: CPU usage, load averages, frequency, and temperature display
 - DiskWidget: Disk partition usage and I/O statistics display
+- GPUWidget: GPU usage and information display
 - MemoryWidget: RAM and Swap usage with progress bars and details
 - NetworkWidget: Network interface statistics and connections display
 - ProcessWidget: Process list with DataTable for monitoring system processes
@@ -20,19 +21,18 @@ from uptop.tui.panes.cpu_widget import (
 )
 from uptop.tui.panes.disk_widget import (
     DiskWidget,
-    IOStatsDisplay,
     PartitionDisplay,
     format_bytes,
-    format_rate,
+    format_iops,
 )
 from uptop.tui.panes.disk_widget import get_usage_color as get_disk_usage_color
-from uptop.tui.panes.memory_widget import (
-    MemoryBar,
-    MemoryDetails,
-    MemoryWidget,
+from uptop.tui.panes.gpu_widget import (
+    GPUProgressBar,
+    GPUWidget,
 )
+from uptop.tui.panes.gpu_widget import get_usage_color as get_gpu_usage_color
+from uptop.tui.panes.memory_widget import MemoryWidget
 from uptop.tui.panes.memory_widget import format_bytes as format_memory_bytes
-from uptop.tui.panes.memory_widget import get_usage_color as get_memory_usage_color
 from uptop.tui.panes.network_widget import NetworkWidget
 from uptop.tui.panes.process_widget import (
     COLUMN_CONFIG,
@@ -59,17 +59,17 @@ __all__ = [
     "THRESHOLD_MEDIUM",
     # Disk Widget
     "DiskWidget",
-    "IOStatsDisplay",
     "PartitionDisplay",
     "format_bytes",
-    "format_rate",
+    "format_iops",
     "get_disk_usage_color",
+    # GPU Widget
+    "GPUWidget",
+    "GPUProgressBar",
+    "get_gpu_usage_color",
     # Memory Widget
     "MemoryWidget",
-    "MemoryBar",
-    "MemoryDetails",
     "format_memory_bytes",
-    "get_memory_usage_color",
     # Network Widget
     "NetworkWidget",
     # Process Widget

@@ -120,52 +120,12 @@ class TestCoreUsageRow:
         row = CoreUsageRow(core_id=0, usage_percent=50.0)
         assert row.core_id == 0
         assert row.usage_percent == 50.0
-        assert row.freq_mhz is None
-        assert row.temp_celsius is None
 
-    def test_instantiation_with_all_fields(self) -> None:
-        """Test instantiation with all optional fields."""
-        row = CoreUsageRow(
-            core_id=1,
-            usage_percent=75.0,
-            freq_mhz=3600.0,
-            temp_celsius=65.0,
-        )
-        assert row.core_id == 1
+    def test_instantiation_various_cores(self) -> None:
+        """Test instantiation with various core IDs."""
+        row = CoreUsageRow(core_id=15, usage_percent=75.0)
+        assert row.core_id == 15
         assert row.usage_percent == 75.0
-        assert row.freq_mhz == 3600.0
-        assert row.temp_celsius == 65.0
-
-    def test_render_returns_text(self) -> None:
-        """Test that render returns a Rich Text object."""
-        row = CoreUsageRow(core_id=0, usage_percent=50.0)
-        result = row.render()
-        assert isinstance(result, Text)
-
-    def test_render_includes_core_id(self) -> None:
-        """Test that render includes core ID."""
-        row = CoreUsageRow(core_id=5, usage_percent=50.0)
-        result = row.render()
-        assert "Core" in result.plain
-        assert "5" in result.plain
-
-    def test_render_includes_percentage(self) -> None:
-        """Test that render includes usage percentage."""
-        row = CoreUsageRow(core_id=0, usage_percent=75.5)
-        result = row.render()
-        assert "75.5%" in result.plain
-
-    def test_render_includes_frequency_when_present(self) -> None:
-        """Test that frequency is shown when available."""
-        row = CoreUsageRow(core_id=0, usage_percent=50.0, freq_mhz=3200.0)
-        result = row.render()
-        assert "3200MHz" in result.plain
-
-    def test_render_includes_temperature_when_present(self) -> None:
-        """Test that temperature is shown when available."""
-        row = CoreUsageRow(core_id=0, usage_percent=50.0, temp_celsius=55.0)
-        result = row.render()
-        assert "55.0C" in result.plain
 
 
 class TestCPUWidget:
@@ -191,26 +151,23 @@ class TestCPUWidget:
         widget.update_data(data)
         assert widget.cpu_data is data
 
-    def test_render_total_usage_no_data(self) -> None:
-        """Test _render_total_usage with no data."""
+    def test_get_usage_color_class_low(self) -> None:
+        """Test _get_usage_color_class for low usage."""
         widget = CPUWidget()
-        result = widget._render_total_usage()
-        assert isinstance(result, Text)
-        assert "No data" in result.plain
+        assert widget._get_usage_color_class(25.0) == ""
+        assert widget._get_usage_color_class(49.9) == ""
 
-    def test_render_total_usage_with_data(self) -> None:
-        """Test _render_total_usage with valid data."""
-        cores = [
-            CPUCore(id=0, usage_percent=40.0),
-            CPUCore(id=1, usage_percent=60.0),
-        ]
-        data = CPUData(cores=cores)
-        widget = CPUWidget(cpu_data=data)
-        result = widget._render_total_usage()
-        assert isinstance(result, Text)
-        assert "Total:" in result.plain
-        assert "50.0%" in result.plain  # Average of 40 and 60
-        assert "2 cores" in result.plain
+    def test_get_usage_color_class_medium(self) -> None:
+        """Test _get_usage_color_class for medium usage."""
+        widget = CPUWidget()
+        assert widget._get_usage_color_class(50.0) == "medium"
+        assert widget._get_usage_color_class(79.9) == "medium"
+
+    def test_get_usage_color_class_high(self) -> None:
+        """Test _get_usage_color_class for high usage."""
+        widget = CPUWidget()
+        assert widget._get_usage_color_class(80.0) == "high"
+        assert widget._get_usage_color_class(100.0) == "high"
 
     def test_render_load_averages_no_data(self) -> None:
         """Test _render_load_averages with no data."""
@@ -266,48 +223,29 @@ class TestCPUWidget:
 class TestCPUWidgetColorThresholds:
     """Tests specifically for color threshold behavior."""
 
-    def test_total_usage_green_color(self) -> None:
-        """Test that low total usage results in green coloring."""
+    def test_total_usage_green_color_class(self) -> None:
+        """Test that low total usage results in no color class (default green)."""
         cores = [CPUCore(id=0, usage_percent=25.0)]
         data = CPUData(cores=cores)
         widget = CPUWidget(cpu_data=data)
-        result = widget._render_total_usage()
+        color_class = widget._get_usage_color_class(data.total_usage_percent)
+        assert color_class == "", "Expected no class (default green) for low usage"
 
-        # Check that the text contains styles (spans) with green
-        has_green = False
-        for span in result.spans:
-            if span.style and "green" in str(span.style):
-                has_green = True
-                break
-        assert has_green, "Expected green styling for low usage"
-
-    def test_total_usage_yellow_color(self) -> None:
-        """Test that medium total usage results in yellow coloring."""
+    def test_total_usage_yellow_color_class(self) -> None:
+        """Test that medium total usage results in 'medium' color class."""
         cores = [CPUCore(id=0, usage_percent=65.0)]
         data = CPUData(cores=cores)
         widget = CPUWidget(cpu_data=data)
-        result = widget._render_total_usage()
+        color_class = widget._get_usage_color_class(data.total_usage_percent)
+        assert color_class == "medium", "Expected 'medium' class for medium usage"
 
-        has_yellow = False
-        for span in result.spans:
-            if span.style and "yellow" in str(span.style):
-                has_yellow = True
-                break
-        assert has_yellow, "Expected yellow styling for medium usage"
-
-    def test_total_usage_red_color(self) -> None:
-        """Test that high total usage results in red coloring."""
+    def test_total_usage_red_color_class(self) -> None:
+        """Test that high total usage results in 'high' color class."""
         cores = [CPUCore(id=0, usage_percent=95.0)]
         data = CPUData(cores=cores)
         widget = CPUWidget(cpu_data=data)
-        result = widget._render_total_usage()
-
-        has_red = False
-        for span in result.spans:
-            if span.style and "red" in str(span.style):
-                has_red = True
-                break
-        assert has_red, "Expected red styling for high usage"
+        color_class = widget._get_usage_color_class(data.total_usage_percent)
+        assert color_class == "high", "Expected 'high' class for high usage"
 
 
 class TestCPUWidgetWithSampleData:
@@ -334,9 +272,12 @@ class TestCPUWidgetWithSampleData:
         widget = CPUWidget(cpu_data=sample_cpu_data)
 
         # Check total usage (average of 25, 50, 75, 90 = 60%)
-        total_result = widget._render_total_usage()
-        assert "60.0%" in total_result.plain
-        assert "4 cores" in total_result.plain
+        assert sample_cpu_data.total_usage_percent == 60.0
+        assert sample_cpu_data.core_count == 4
+
+        # Check color class for 60% usage (medium)
+        color_class = widget._get_usage_color_class(sample_cpu_data.total_usage_percent)
+        assert color_class == "medium"
 
         # Check load averages
         load_result = widget._render_load_averages()
@@ -349,15 +290,12 @@ class TestCPUWidgetWithSampleData:
         assert freq_result is not None
         assert "MHz" in freq_result.plain
 
-    def test_core_usage_rows_render(self, sample_cpu_data: CPUData) -> None:
-        """Test that core usage rows render correctly."""
+    def test_core_usage_rows_instantiate(self, sample_cpu_data: CPUData) -> None:
+        """Test that core usage rows can be instantiated correctly."""
         for core in sample_cpu_data.cores:
             row = CoreUsageRow(
                 core_id=core.id,
                 usage_percent=core.usage_percent,
-                freq_mhz=core.freq_mhz,
-                temp_celsius=core.temp_celsius,
             )
-            result = row.render()
-            assert f"Core {core.id:2d}" in result.plain
-            assert f"{core.usage_percent:.1f}%" in result.plain
+            assert row.core_id == core.id
+            assert row.usage_percent == core.usage_percent

@@ -321,7 +321,7 @@ class CPUPane(PanePlugin):
         if self._cached_widget is None:
             self._cached_widget = CPUWidget()
 
-        self._cached_widget.update_data(data)
+        self._cached_widget.update_data(data, mode)
         return self._cached_widget
 
     def get_schema(self) -> type[CPUData]:

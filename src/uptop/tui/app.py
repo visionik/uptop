@@ -21,12 +21,11 @@ from typing import TYPE_CHECKING, Any
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container
 from textual.timer import Timer
 from textual.widgets import Footer, Header, Label, Static
 
 from uptop import __version__
-from uptop.models.base import DisplayMode
 from uptop.performance import get_profiler
 from uptop.tui.layouts.grid import DEFAULT_LAYOUT_CONFIG, GridLayout
 from uptop.tui.messages import DisplayModeChanged, PaneResized
@@ -35,7 +34,6 @@ from uptop.tui.screens import (
     FilterScreen,
     HelpScreen,
     KillSignal,
-    LoadingScreen,
 )
 
 if TYPE_CHECKING:
@@ -474,14 +472,20 @@ class UptopApp(App[None]):
         # Start loading indicator
         container.start_loading()
 
-        # Track timing for profiling
-        collect_start = time.monotonic()
+        # Import Sentry tracing functions
+        from uptop.sentry import (
+            log_error,
+            trace_plugin_collect,
+            trace_plugin_render,
+        )
 
         try:
-            # Collect data asynchronously
-            data = await plugin.collect_data()
+            # Collect data with tracing (includes profiling and metrics)
+            collect_start = time.monotonic()
+            with trace_plugin_collect(pane_name):
+                data = await plugin.collect_data()
 
-            # Record collection time if profiling is enabled
+            # Record to internal profiler if debug mode
             if self._debug_mode:
                 collect_time_ms = (time.monotonic() - collect_start) * 1000
                 profiler = get_profiler()
@@ -490,15 +494,14 @@ class UptopApp(App[None]):
             # Store as last good data
             self._last_good_data[pane_name] = data
 
-            # Time the render
-            render_start = time.monotonic()
-
             # Get size and mode from container
             size = (container.size.width, container.size.height) if container.size else None
             mode = container.display_mode
 
-            # Render the widget with size and mode
-            widget = plugin.render_tui(data, size, mode)
+            # Render the widget with tracing
+            render_start = time.monotonic()
+            with trace_plugin_render(pane_name):
+                widget = plugin.render_tui(data, size, mode)
 
             # Update the container
             container.set_content(widget)
@@ -506,7 +509,7 @@ class UptopApp(App[None]):
             container.clear_error()
             container.mark_fresh()
 
-            # Record render time if profiling is enabled
+            # Record to internal profiler if debug mode
             if self._debug_mode:
                 render_time_ms = (time.monotonic() - render_start) * 1000
                 profiler = get_profiler()
@@ -515,6 +518,7 @@ class UptopApp(App[None]):
             logger.debug(f"Refreshed pane {pane_name} successfully")
 
         except Exception as e:
+            log_error(f"Plugin refresh failed: {pane_name}", plugin=pane_name, error=str(e))
             logger.error(f"Error refreshing pane {pane_name}: {e}")
 
             # Stop loading and show error state
@@ -533,12 +537,15 @@ class UptopApp(App[None]):
             return
 
         from uptop.models.base import PluginType
+        from uptop.sentry import trace_refresh_cycle
 
         pane_plugins = self._plugin_registry.get_plugins_by_type(PluginType.PANE)
+        enabled_panes = [p.name for p in pane_plugins if p.enabled]
 
-        for plugin in pane_plugins:
-            if plugin.enabled:
-                await self._refresh_pane(plugin.name)
+        # Wrap the entire refresh cycle in a transaction
+        with trace_refresh_cycle(enabled_panes):
+            for pane_name in enabled_panes:
+                await self._refresh_pane(pane_name)
 
     def stop_refresh_loops(self) -> None:
         """Stop all refresh timers.
@@ -708,7 +715,7 @@ class UptopApp(App[None]):
     async def action_cycle_display_mode(self) -> None:
         """Cycle the display mode of the focused pane.
 
-        Cycles through MINIMUM -> MEDIUM -> MAXIMUM -> MINIMUM.
+        Cycles through MICRO -> MINIMIZED -> MEDIUM -> MAXIMIZED -> MICRO.
         Shows a notification with the new mode.
         """
         try:
@@ -770,6 +777,8 @@ def run_app(config: Config | None = None, debug_mode: bool = False) -> None:
     # Register internal pane plugins
     from uptop.plugins.cpu import CPUPane
     from uptop.plugins.disk import DiskPane
+
+    # from uptop.plugins.gpu import GPUPane  # Temporarily disabled
     from uptop.plugins.memory import MemoryPane
     from uptop.plugins.network import NetworkPane
     from uptop.plugins.processes import ProcessPane
@@ -779,6 +788,7 @@ def run_app(config: Config | None = None, debug_mode: bool = False) -> None:
     registry.register(ProcessPane())
     registry.register(NetworkPane())
     registry.register(DiskPane())
+    # registry.register(GPUPane())  # Temporarily disabled
 
     # Discover any external plugins
     registry.discover_all()

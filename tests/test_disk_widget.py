@@ -3,10 +3,9 @@
 from uptop.plugins.disk import DiskData, DiskIOStats, PartitionInfo
 from uptop.tui.panes.disk_widget import (
     DiskWidget,
-    IOStatsDisplay,
     PartitionDisplay,
     format_bytes,
-    format_rate,
+    format_iops,
     get_usage_color,
 )
 
@@ -16,65 +15,50 @@ from uptop.tui.panes.disk_widget import (
 
 
 class TestFormatBytes:
-    """Tests for format_bytes helper function."""
+    """Tests for format_bytes helper function.
+
+    Note: format_bytes now matches network widget style:
+    - Always at least KB (no plain bytes)
+    - No space between number and unit
+    """
 
     def test_format_zero_bytes(self) -> None:
-        """Test formatting zero bytes."""
-        assert format_bytes(0) == "0 B"
+        """Test formatting zero bytes (shows as 0.0KB)."""
+        assert format_bytes(0) == "0.0KB"
 
     def test_format_negative_bytes(self) -> None:
-        """Test formatting negative bytes (edge case)."""
-        assert format_bytes(-100) == "0 B"
+        """Test formatting negative bytes (edge case, treated as 0)."""
+        assert format_bytes(-100) == "0.0KB"
 
     def test_format_bytes_under_kb(self) -> None:
-        """Test formatting bytes under 1 KB."""
-        assert format_bytes(512) == "512 B"
-        assert format_bytes(1023) == "1023 B"
+        """Test formatting bytes under 1 KB (still shows as KB)."""
+        assert format_bytes(512) == "0.5KB"
+        assert format_bytes(1023) == "1.0KB"
 
     def test_format_kilobytes(self) -> None:
         """Test formatting kilobytes."""
-        assert format_bytes(1024) == "1.0 KB"
-        assert format_bytes(1536) == "1.5 KB"
-        assert format_bytes(10240) == "10.0 KB"
+        assert format_bytes(1024) == "1.0KB"
+        assert format_bytes(1536) == "1.5KB"
+        assert format_bytes(10240) == "10.0KB"
 
     def test_format_megabytes(self) -> None:
         """Test formatting megabytes."""
-        assert format_bytes(1024 * 1024) == "1.0 MB"
-        assert format_bytes(1024 * 1024 * 256) == "256.0 MB"
+        assert format_bytes(1024 * 1024) == "1.0MB"
+        assert format_bytes(1024 * 1024 * 256) == "256.0MB"
 
     def test_format_gigabytes(self) -> None:
         """Test formatting gigabytes."""
-        assert format_bytes(1024**3) == "1.0 GB"
-        assert format_bytes(1024**3 * 16) == "16.0 GB"
+        assert format_bytes(1024**3) == "1.0GB"
+        assert format_bytes(1024**3 * 16) == "16.0GB"
 
     def test_format_terabytes(self) -> None:
         """Test formatting terabytes."""
-        assert format_bytes(1024**4) == "1.0 TB"
-        assert format_bytes(1024**4 * 2) == "2.0 TB"
+        assert format_bytes(1024**4) == "1.0TB"
+        assert format_bytes(1024**4 * 2) == "2.0TB"
 
     def test_format_petabytes(self) -> None:
         """Test formatting petabytes."""
-        assert format_bytes(1024**5) == "1.0 PB"
-
-
-class TestFormatRate:
-    """Tests for format_rate helper function."""
-
-    def test_format_rate_zero(self) -> None:
-        """Test formatting zero rate."""
-        assert format_rate(0) == "0 B/s"
-
-    def test_format_rate_bytes_per_sec(self) -> None:
-        """Test formatting bytes per second."""
-        assert format_rate(512) == "512 B/s"
-
-    def test_format_rate_mb_per_sec(self) -> None:
-        """Test formatting megabytes per second."""
-        assert format_rate(1024 * 1024 * 100) == "100.0 MB/s"
-
-    def test_format_rate_gb_per_sec(self) -> None:
-        """Test formatting gigabytes per second."""
-        assert format_rate(1024**3) == "1.0 GB/s"
+        assert format_bytes(1024**5) == "1.0PB"
 
 
 # ============================================================================
@@ -332,35 +316,46 @@ class TestPartitionDisplay:
 
 
 # ============================================================================
-# IOStatsDisplay Tests
+# format_iops Tests
 # ============================================================================
 
 
-class TestIOStatsDisplay:
-    """Tests for IOStatsDisplay widget."""
+class TestFormatIops:
+    """Tests for format_iops helper function."""
 
-    def test_io_stats_display_instantiation(self) -> None:
-        """Test IOStatsDisplay can be instantiated."""
-        io_stats = [
-            DiskIOStats(
-                device="sda",
-                read_bytes=1000000,
-                write_bytes=500000,
-                read_count=100,
-                write_count=50,
-                read_time_ms=1000,
-                write_time_ms=500,
-            ),
-        ]
+    def test_format_iops_zero(self) -> None:
+        """Test formatting zero IOPS."""
+        assert format_iops(0) == "0"
 
-        display = IOStatsDisplay(io_stats)
+    def test_format_iops_under_thousand(self) -> None:
+        """Test formatting IOPS under 1000."""
+        assert format_iops(1) == "1"
+        assert format_iops(500) == "500"
+        assert format_iops(999) == "999"
 
-        assert display._io_stats == io_stats
-        assert display._prev_io_stats is None
-        assert display._interval == 1.0
+    def test_format_iops_thousands(self) -> None:
+        """Test formatting thousands of IOPS."""
+        assert format_iops(1000) == "1.0K"
+        assert format_iops(1500) == "1.5K"
+        assert format_iops(10000) == "10.0K"
+        assert format_iops(999999) == "1000.0K"
 
-    def test_io_stats_display_with_prev_stats(self) -> None:
-        """Test IOStatsDisplay with previous stats for rate calculation."""
+    def test_format_iops_millions(self) -> None:
+        """Test formatting millions of IOPS."""
+        assert format_iops(1000000) == "1.0M"
+        assert format_iops(2500000) == "2.5M"
+
+
+# ============================================================================
+# DiskWidget Rate Calculation Tests
+# ============================================================================
+
+
+class TestDiskWidgetRateCalculation:
+    """Tests for DiskWidget rate calculation."""
+
+    def test_rate_calculation_with_prev_data(self) -> None:
+        """Test rate calculation with previous data."""
         prev_stats = [
             DiskIOStats(
                 device="sda",
@@ -385,13 +380,25 @@ class TestIOStatsDisplay:
             ),
         ]
 
-        display = IOStatsDisplay(
-            current_stats,
-            prev_io_stats=prev_stats,
-            interval=5.0,
+        prev_data = DiskData(
+            partitions=[],
+            io_stats=prev_stats,
+            partition_count=0,
+            source="disk",
         )
 
-        rates = display._calculate_rates()
+        current_data = DiskData(
+            partitions=[],
+            io_stats=current_stats,
+            partition_count=0,
+            source="disk",
+        )
+
+        widget = DiskWidget(refresh_interval=5.0)
+        widget.prev_data = prev_data
+        widget.data = current_data
+
+        rates = widget._calculate_rates()
 
         # Read rate: (2000000 - 1000000) / 5.0 = 200000 bytes/sec
         assert "sda" in rates
@@ -400,8 +407,8 @@ class TestIOStatsDisplay:
         assert rates["sda"]["read_iops"] == 20.0
         assert rates["sda"]["write_iops"] == 10.0
 
-    def test_io_stats_display_no_prev_stats(self) -> None:
-        """Test IOStatsDisplay rate calculation without previous stats."""
+    def test_rate_calculation_no_prev_data(self) -> None:
+        """Test rate calculation without previous data."""
         io_stats = [
             DiskIOStats(
                 device="sda",
@@ -414,15 +421,23 @@ class TestIOStatsDisplay:
             ),
         ]
 
-        display = IOStatsDisplay(io_stats)
+        data = DiskData(
+            partitions=[],
+            io_stats=io_stats,
+            partition_count=0,
+            source="disk",
+        )
 
-        rates = display._calculate_rates()
+        widget = DiskWidget()
+        widget.data = data
 
-        # Without previous stats, rates should be empty
+        rates = widget._calculate_rates()
+
+        # Without previous data, rates should be empty
         assert rates == {}
 
-    def test_io_stats_display_multiple_devices(self) -> None:
-        """Test IOStatsDisplay with multiple devices."""
+    def test_rate_calculation_multiple_devices(self) -> None:
+        """Test rate calculation with multiple devices."""
         prev_stats = [
             DiskIOStats(
                 device="sda",
@@ -465,42 +480,30 @@ class TestIOStatsDisplay:
             ),
         ]
 
-        display = IOStatsDisplay(
-            current_stats,
-            prev_io_stats=prev_stats,
-            interval=1.0,
+        prev_data = DiskData(
+            partitions=[],
+            io_stats=prev_stats,
+            partition_count=0,
+            source="disk",
         )
 
-        rates = display._calculate_rates()
+        current_data = DiskData(
+            partitions=[],
+            io_stats=current_stats,
+            partition_count=0,
+            source="disk",
+        )
+
+        widget = DiskWidget(refresh_interval=1.0)
+        widget.prev_data = prev_data
+        widget.data = current_data
+
+        rates = widget._calculate_rates()
 
         assert "sda" in rates
         assert "sdb" in rates
         assert rates["sda"]["read_bytes_rate"] == 1000000.0
         assert rates["sdb"]["read_bytes_rate"] == 2000000.0
-
-    def test_io_stats_display_empty_stats(self) -> None:
-        """Test IOStatsDisplay with empty stats list."""
-        display = IOStatsDisplay([])
-
-        assert display._io_stats == []
-
-    def test_io_stats_display_custom_interval(self) -> None:
-        """Test IOStatsDisplay with custom interval."""
-        io_stats = [
-            DiskIOStats(
-                device="sda",
-                read_bytes=1000000,
-                write_bytes=500000,
-                read_count=100,
-                write_count=50,
-                read_time_ms=1000,
-                write_time_ms=500,
-            ),
-        ]
-
-        display = IOStatsDisplay(io_stats, interval=10.0)
-
-        assert display._interval == 10.0
 
 
 # ============================================================================
@@ -559,9 +562,9 @@ class TestDiskWidgetIntegration:
         assert widget.data.partition_count == 2
         assert len(widget.data.io_stats) == 1
 
-        # Verify human-readable formatting
-        assert format_bytes(partitions[0].total_bytes) == "256.0 GB"
-        assert format_bytes(partitions[1].total_bytes) == "512.0 GB"
+        # Verify human-readable formatting (no space, network widget style)
+        assert format_bytes(partitions[0].total_bytes) == "256.0GB"
+        assert format_bytes(partitions[1].total_bytes) == "512.0GB"
 
     def test_critical_disk_space(self) -> None:
         """Test widget display for critical disk space situation."""
@@ -585,4 +588,4 @@ class TestDiskWidgetIntegration:
 
         # Should show red/high usage color
         assert get_usage_color(widget.data.partitions[0].percent) == "usage-high"
-        assert format_bytes(partition.free_bytes) == "2.0 GB"
+        assert format_bytes(partition.free_bytes) == "2.0GB"

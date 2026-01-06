@@ -658,7 +658,7 @@ class PaneContainer(Widget):
     def cycle_display_mode(self) -> DisplayMode:
         """Cycle to the next display mode.
 
-        Cycles through MINIMUM -> MEDIUM -> MAXIMUM -> MINIMUM.
+        Cycles through MICRO -> MINIMIZED -> MEDIUM -> MAXIMIZED -> MICRO.
         Posts a DisplayModeChanged message when the mode changes.
 
         Returns:

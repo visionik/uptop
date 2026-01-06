@@ -22,9 +22,9 @@ from uptop.tui.widgets.sparkline import (
 class TestValueToChar:
     """Tests for the value_to_char function."""
 
-    def test_min_value_returns_space(self) -> None:
-        """Test that minimum value returns a space character."""
-        assert value_to_char(0.0, 0.0, 100.0) == " "
+    def test_min_value_returns_underscore(self) -> None:
+        """Test that minimum value returns an underscore character."""
+        assert value_to_char(0.0, 0.0, 100.0) == "_"
 
     def test_max_value_returns_full_block(self) -> None:
         """Test that maximum value returns full block character."""
@@ -38,7 +38,7 @@ class TestValueToChar:
 
     def test_value_below_min_clamped(self) -> None:
         """Test that values below min are clamped to min."""
-        assert value_to_char(-10.0, 0.0, 100.0) == " "
+        assert value_to_char(-10.0, 0.0, 100.0) == "_"
 
     def test_value_above_max_clamped(self) -> None:
         """Test that values above max are clamped to max."""
@@ -130,7 +130,7 @@ class TestSparklineWidget:
         assert sparkline.show_label is False
         assert sparkline.label == ""
         assert sparkline.color_by_value is True
-        assert sparkline.history_size == 60
+        assert sparkline.history_size == 200
         assert len(sparkline.values) == 0
 
     def test_initialization_with_values(self) -> None:
@@ -218,7 +218,7 @@ class TestSparklineWidget:
         rendered_str = str(rendered)
         assert len(rendered_str) == 10
         # First char should be for 0%, last should be for 90%
-        assert rendered_str[0] == " "  # 0% is space
+        assert rendered_str[0] == "_"  # 0% is underscore
         assert rendered_str[-1] in SPARK_CHARS[6:9]  # 90% is high
 
     def test_render_exceeds_width(self) -> None:
@@ -257,8 +257,8 @@ class TestSparklineWidget:
         sparkline = Sparkline(values=values, width=10)
         rendered = sparkline.render()
         rendered_str = str(rendered)
-        # All characters should be spaces
-        assert all(c == " " for c in rendered_str)
+        # All characters should be underscores
+        assert all(c == "_" for c in rendered_str)
 
     def test_render_ascending_pattern(self) -> None:
         """Test rendering with ascending values."""
@@ -267,7 +267,7 @@ class TestSparklineWidget:
         rendered = sparkline.render()
         rendered_str = str(rendered)
         # Characters should increase in height
-        assert rendered_str[0] == " "  # 0%
+        assert rendered_str[0] == "_"  # 0%
         assert rendered_str[-1] == "\u2588"  # 100%
         # Middle characters should be intermediate
         for i in range(1, 4):
@@ -281,7 +281,7 @@ class TestSparklineWidget:
         rendered_str = str(rendered)
         # Characters should decrease in height
         assert rendered_str[0] == "\u2588"  # 100%
-        assert rendered_str[-1] == " "  # 0%
+        assert rendered_str[-1] == "_"  # 0%
 
 
 class TestSparklineIntegration:

@@ -31,6 +31,8 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Label
 from textual.widgets.data_table import RowKey
 
+from uptop.models.base import DisplayMode
+
 if TYPE_CHECKING:
     from uptop.plugins.processes import ProcessInfo, ProcessListData
 
@@ -362,6 +364,7 @@ class ProcessWidget(Widget):
     sort_direction: reactive[SortDirection] = reactive(SortDirection.DESCENDING)
     filter_text: reactive[str] = reactive("")
     tree_view: reactive[bool] = reactive(False)
+    _display_mode: reactive[DisplayMode] = reactive(DisplayMode.MEDIUM)
 
     # Thresholds for highlighting
     HIGH_CPU_THRESHOLD: ClassVar[float] = 50.0
@@ -396,13 +399,39 @@ class ProcessWidget(Widget):
 
     def compose(self) -> ComposeResult:
         """Compose the widget with DataTable and summary bar."""
+        match self._display_mode:
+            case DisplayMode.MICRO:
+                # Ultra-compact: single line with process count
+                if self._data:
+                    total = len(self._data.processes)
+                    running = sum(1 for p in self._data.processes if p.status == "running")
+                    yield Label(f"Procs {total} ({running} run)", classes="micro-label")
+                else:
+                    yield Label("Procs --", classes="micro-label")
+
+            case DisplayMode.MINIMIZED:
+                # Compact view - same structure but less info (for future)
+                yield from self._compose_medium()
+
+            case DisplayMode.MEDIUM:
+                # Current implementation - full table + summary
+                yield from self._compose_medium()
+
+            case DisplayMode.MAXIMIZED:
+                # Same as medium for now
+                yield from self._compose_medium()
+
+    def _compose_medium(self) -> ComposeResult:
+        """Compose the medium display mode (full DataTable + summary bar)."""
         yield DataTable(id="process-table", cursor_type="row")
         yield Label("", id="summary-bar", classes="summary-bar")
 
     def on_mount(self) -> None:
         """Initialize the DataTable when mounted."""
-        table = self.query_one("#process-table", DataTable)
-        self._setup_columns(table)
+        # Only set up table if not in MICRO mode
+        if self._display_mode != DisplayMode.MICRO:
+            table = self.query_one("#process-table", DataTable)
+            self._setup_columns(table)
 
         # If data was set before mounting, apply it now
         if self._data is not None:
@@ -483,12 +512,17 @@ class ProcessWidget(Widget):
             format_command(proc.cmdline, proc.name),
         )
 
-    def update_data(self, data: ProcessListData) -> None:
+    def update_data(self, data: ProcessListData, mode: DisplayMode | None = None) -> None:
         """Update the widget with new process data.
 
         Args:
             data: ProcessListData from the collector
+            mode: Optional display mode to switch to
         """
+        if mode is not None and mode != self._display_mode:
+            self._display_mode = mode
+            self.recompose()
+
         self._data = data
 
         if not self.is_mounted:
@@ -506,6 +540,18 @@ class ProcessWidget(Widget):
             return
 
         data = self._data
+
+        # Handle MICRO mode - just update the label
+        if self._display_mode == DisplayMode.MICRO:
+            try:
+                label = self.query_one(".micro-label", Label)
+                total = len(data.processes)
+                running = sum(1 for p in data.processes if p.status == "running")
+                label.update(f"Procs {total} ({running} run)")
+            except Exception:
+                pass  # Label not found or not mounted yet
+            return
+
         table = self.query_one("#process-table", DataTable)
         summary = self.query_one("#summary-bar", Label)
 

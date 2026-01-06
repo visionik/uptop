@@ -44,6 +44,8 @@ class VirtualMemory(BaseModel):
         percent: Percentage of memory used (used / total * 100) [gauge]
         cached_bytes: Memory used for disk cache (Linux/macOS only) [gauge]
         buffers_bytes: Memory used for filesystem buffers (Linux only) [gauge]
+        active_bytes: Memory currently in use or recently used (Linux/macOS) [gauge]
+        inactive_bytes: Memory marked as not used (Linux/macOS) [gauge]
     """
 
     # Use frozen=True for immutability
@@ -57,6 +59,12 @@ class VirtualMemory(BaseModel):
         "Cached memory in bytes (Linux/macOS)", default=None, ge=0
     )
     buffers_bytes: int | None = gauge_field("Buffer memory in bytes (Linux)", default=None, ge=0)
+    active_bytes: int | None = gauge_field(
+        "Active memory in bytes (Linux/macOS)", default=None, ge=0
+    )
+    inactive_bytes: int | None = gauge_field(
+        "Inactive memory in bytes (Linux/macOS)", default=None, ge=0
+    )
 
     @property
     def free_bytes(self) -> int:
@@ -123,9 +131,11 @@ class MemoryCollector(DataCollector[MemoryData]):
         # Collect virtual memory
         vm = psutil.virtual_memory()
 
-        # Handle platform differences - cached and buffers may not exist
+        # Handle platform differences - cached, buffers, active, inactive may not exist
         cached_bytes: int | None = getattr(vm, "cached", None)
         buffers_bytes: int | None = getattr(vm, "buffers", None)
+        active_bytes: int | None = getattr(vm, "active", None)
+        inactive_bytes: int | None = getattr(vm, "inactive", None)
 
         virtual = VirtualMemory(
             total_bytes=vm.total,
@@ -134,6 +144,8 @@ class MemoryCollector(DataCollector[MemoryData]):
             percent=vm.percent,
             cached_bytes=cached_bytes,
             buffers_bytes=buffers_bytes,
+            active_bytes=active_bytes,
+            inactive_bytes=inactive_bytes,
         )
 
         # Collect swap memory
@@ -221,7 +233,7 @@ class MemoryPane(PanePlugin):
         if self._cached_widget is None:
             self._cached_widget = MemoryWidget()
 
-        self._cached_widget.update_data(data)
+        self._cached_widget.update_data(data, mode)
         return self._cached_widget
 
     def get_schema(self) -> type[MemoryData]:
