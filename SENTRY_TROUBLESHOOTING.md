@@ -99,7 +99,7 @@ sentry_sdk.flush(timeout=5)
 Current configuration in `src/uptop/sentry.py`:
 
 ```python
-SENTRY_DSN = "https://e6687b7593c0963df3f499a54bb80bd9@o4510618809270272.ingest.us.sentry.io/4510618812022784"
+SENTRY_DSN = "https://7ecf22e898e00f2a64f4815c09d01e8e@o4510618809270272.ingest.us.sentry.io/4510661135237120"
 
 init_sentry(
     dsn=SENTRY_DSN,
