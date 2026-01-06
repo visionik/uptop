@@ -141,10 +141,22 @@ async def collect_pane_data(pane: PanePlugin, pane_name: str) -> tuple[str, Metr
     Returns:
         Tuple of (pane_name, data or None if collection failed)
     """
+    import sentry_sdk
+    from uptop.sentry import log_error
+
     try:
-        data = await pane.collect_data()
+        # Start a transaction for this collection
+        with sentry_sdk.start_transaction(
+            name=f"cli_collect:{pane_name}",
+            op="plugin.collect",
+        ) as txn:
+            # Create a span to track the actual work
+            with sentry_sdk.start_span(name=pane_name) as span:
+                data = await pane.collect_data()
+                span.set_data("pane", pane_name)
         return pane_name, data
     except Exception as e:
+        log_error(f"CLI plugin collect failed: {pane_name}", plugin=pane_name, error=str(e))
         console.print(f"[yellow]Warning: Failed to collect {pane_name} data: {e}[/yellow]")
         return pane_name, None
 
