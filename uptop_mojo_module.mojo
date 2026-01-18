@@ -194,7 +194,9 @@ fn py_collect_top_processes(py_max: PythonObject) raises -> PythonObject:
             proc_dict["status"] = info.get("status", "unknown")
             proc_dict["create_time"] = info.get("create_time", 0.0)
             proc_dict["cmdline"] = cmdline
-            proc_dict["num_threads"] = info.get("num_threads", 1)
+            
+            var threads = info.get("num_threads", 1)
+            proc_dict["num_threads"] = 1 if threads is None else threads
             
             result.append(proc_dict)
             
