@@ -40,17 +40,17 @@ fn collect_top_processes(max_processes: Int = 100) raises -> PythonObject:
     This optimized implementation:
     1. Iterates processes once
     2. Extracts only essential metrics
-    3. Keeps only top N by CPU
+    3. Filters and sorts by CPU/memory
     4. Returns lightweight Python list
     
     Args:
-        max_processes: Maximum number of processes to return (default: 100)
+        max_processes: Maximum number of processes to return (default: 100).
     
     Returns:
-        Python list of dicts with process info
+        Python list of dicts with process info.
     
     Raises:
-        If psutil import fails
+        If psutil import fails.
     """
     var psutil = Python.import_module("psutil")
     
@@ -58,6 +58,14 @@ fn collect_top_processes(max_processes: Int = 100) raises -> PythonObject:
     var result = Python.list()
     var process_count = 0
     var running_count = 0
+    
+    # First, iterate once to prime cpu_percent
+    # psutil requires two calls to cpu_percent() to get a delta
+    for proc in psutil.process_iter():
+        try:
+            _ = proc.cpu_percent(interval=0)
+        except:
+            pass
     
     # Attributes to collect from psutil
     var attrs = Python.list()
@@ -123,13 +131,19 @@ fn collect_top_processes(max_processes: Int = 100) raises -> PythonObject:
                 if status_str == "running":
                     running_count += 1
             
-            # Build dict
+            # Build dict with defaults for None values
             var proc_dict = Python.dict()
             proc_dict["pid"] = info.get("pid", 0)
             proc_dict["name"] = info.get("name", "")
             proc_dict["username"] = info.get("username", "")
-            proc_dict["cpu_percent"] = info.get("cpu_percent", 0.0)
-            proc_dict["memory_percent"] = info.get("memory_percent", 0.0)
+            
+            # Handle None values for CPU and memory
+            var cpu_val = info.get("cpu_percent", 0.0)
+            proc_dict["cpu_percent"] = 0.0 if cpu_val is None else cpu_val
+            
+            var mem_val = info.get("memory_percent", 0.0)
+            proc_dict["memory_percent"] = 0.0 if mem_val is None else mem_val
+            
             proc_dict["memory_rss_bytes"] = rss
             proc_dict["memory_vms_bytes"] = vms
             proc_dict["status"] = info.get("status", "unknown")
@@ -148,10 +162,22 @@ fn collect_top_processes(max_processes: Int = 100) raises -> PythonObject:
             # Skip processes we can't access
             continue
     
-    # TODO: Sort by CPU (requires eval or operator.itemgetter)
-    # For now, just limit the results
-    if len(result) > max_processes:
-        result = result[:max_processes]
+    # Sort by CPU descending using operator.itemgetter
+    var operator = Python.import_module("operator")
+    var builtins = Python.import_module("builtins")
+    
+    # Sort by CPU, then by memory if CPU is equal
+    var sorted_result = builtins.sorted(
+        result,
+        key=operator.itemgetter("cpu_percent", "memory_percent"),
+        reverse=True
+    )
+    
+    # Take top N
+    if len(sorted_result) > max_processes:
+        sorted_result = sorted_result[:max_processes]
+    
+    result = sorted_result
     
     # Return as dict with metadata
     var output = Python.dict()

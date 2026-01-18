@@ -8,6 +8,7 @@ All process metrics are gauges (current values that can go up/down).
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,16 @@ from pydantic import ConfigDict, Field
 from uptop.collectors.base import DataCollector
 from uptop.models.base import DisplayMode, MetricData, gauge_field
 from uptop.plugin_api.base import PanePlugin
+
+# Try to import Mojo bridge for performance optimization
+try:
+    from uptop.mojo_bridge import collect_top_processes_mojo, is_mojo_available
+    MOJO_OPTIMIZATION_AVAILABLE = is_mojo_available()
+except ImportError:
+    MOJO_OPTIMIZATION_AVAILABLE = False
+    collect_top_processes_mojo = None  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -107,6 +118,23 @@ class ProcessCollector(DataCollector[ProcessListData]):
         "cmdline",
         "num_threads",
     ]
+    
+    def __init__(self, use_mojo: bool = False, max_processes: int = 100) -> None:
+        """Initialize the process collector.
+        
+        Args:
+            use_mojo: Use Mojo optimization if available (experimental)
+            max_processes: Maximum number of processes to collect (default: 100)
+        """
+        super().__init__()
+        self.use_mojo = use_mojo and MOJO_OPTIMIZATION_AVAILABLE
+        self.max_processes = max_processes
+        
+        if use_mojo and not MOJO_OPTIMIZATION_AVAILABLE:
+            logger.warning(
+                "Mojo optimization requested but not available. "
+                "Falling back to Python implementation."
+            )
 
     async def collect(self) -> ProcessListData:
         """Collect current process data.
@@ -117,7 +145,44 @@ class ProcessCollector(DataCollector[ProcessListData]):
         Note:
             Processes that cannot be accessed (AccessDenied, NoSuchProcess)
             are silently filtered out.
+            
+            If use_mojo is enabled and available, uses fast Mojo implementation.
         """
+        # Try Mojo optimization first
+        if self.use_mojo and collect_top_processes_mojo is not None:
+            try:
+                mojo_data = collect_top_processes_mojo(self.max_processes)
+                # Convert Mojo result to ProcessInfo objects
+                processes = [
+                    ProcessInfo(
+                        pid=p["pid"],
+                        name=p["name"],
+                        username=p["username"],
+                        cpu_percent=p["cpu_percent"],
+                        memory_percent=p["memory_percent"],
+                        memory_rss_bytes=p["memory_rss_bytes"],
+                        memory_vms_bytes=p["memory_vms_bytes"],
+                        status=p["status"],
+                        create_time=p["create_time"],
+                        cmdline=p["cmdline"],
+                        num_threads=p["num_threads"],
+                        source=self.name,
+                    )
+                    for p in mojo_data["processes"]
+                ]
+                return ProcessListData(
+                    processes=processes,
+                    total_count=mojo_data["total_count"],
+                    running_count=mojo_data["running_count"],
+                    source=self.name,
+                )
+            except NotImplementedError:
+                # Mojo integration not fully ready, fall back
+                logger.debug("Mojo optimization not ready, using Python fallback")
+            except Exception as e:
+                logger.warning(f"Mojo optimization failed: {e}, using Python fallback")
+        
+        # Python implementation
         processes: list[ProcessInfo] = []
         running_count = 0
 
