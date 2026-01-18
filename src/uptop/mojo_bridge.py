@@ -58,20 +58,33 @@ def collect_top_processes_mojo(max_processes: int = 100) -> dict[str, Any]:
             "Mojo is not available. Please install Mojo or fall back to Python implementation."
         )
     
-    # Path to the Mojo script
-    repo_root = Path(__file__).parent.parent.parent
-    mojo_script = repo_root / "process-metrics.mojo"
-    
-    if not mojo_script.exists():
-        raise RuntimeError(f"Mojo script not found: {mojo_script}")
-    
-    # For now, we can't easily call Mojo functions from Python
-    # So we'll use the Python fallback
-    # TODO: Use MAX package or compile to shared library
-    raise NotImplementedError(
-        "Direct Mojo->Python integration requires MAX SDK or compiled library. "
-        "Use Python fallback for now."
-    )
+    # Try to import the Mojo module
+    try:
+        # Import mojo.importer to enable Mojo module imports
+        import mojo.importer  # noqa: F401
+        
+        # Add repo root to Python path for importing uptop_mojo_module
+        repo_root = Path(__file__).parent.parent.parent
+        if str(repo_root) not in sys.path:
+            sys.path.insert(0, str(repo_root))
+        
+        # Import the compiled Mojo module
+        import uptop_mojo_module
+        
+        # Call the Mojo function
+        result = uptop_mojo_module.collect_processes(max_processes)
+        
+        return result
+        
+    except ImportError as e:
+        raise RuntimeError(
+            f"Failed to import Mojo module. Make sure uptop_mojo_module.mojo is compiled. "
+            f"Error: {e}"
+        ) from e
+    except Exception as e:
+        raise RuntimeError(
+            f"Mojo process collection failed: {e}"
+        ) from e
 
 
 def is_mojo_available() -> bool:
