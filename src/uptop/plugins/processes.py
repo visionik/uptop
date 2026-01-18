@@ -9,6 +9,7 @@ All process metrics are gauges (current values that can go up/down).
 from __future__ import annotations
 
 import logging
+import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +29,9 @@ except ImportError:
     collect_top_processes_mojo = None  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+# Check environment variable for Mojo optimization
+USE_MOJO_BY_DEFAULT = os.environ.get("UPTOP_USE_MOJO", "false").lower() in ("true", "1", "yes")
 
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -119,14 +123,20 @@ class ProcessCollector(DataCollector[ProcessListData]):
         "num_threads",
     ]
     
-    def __init__(self, use_mojo: bool = False, max_processes: int = 100) -> None:
+    def __init__(self, use_mojo: bool | None = None, max_processes: int = 100) -> None:
         """Initialize the process collector.
         
         Args:
-            use_mojo: Use Mojo optimization if available (experimental)
+            use_mojo: Use Mojo optimization if available (experimental).
+                     If None, uses UPTOP_USE_MOJO environment variable.
             max_processes: Maximum number of processes to collect (default: 100)
         """
         super().__init__()
+        
+        # Use environment variable if not explicitly set
+        if use_mojo is None:
+            use_mojo = USE_MOJO_BY_DEFAULT
+        
         self.use_mojo = use_mojo and MOJO_OPTIMIZATION_AVAILABLE
         self.max_processes = max_processes
         
@@ -134,6 +144,10 @@ class ProcessCollector(DataCollector[ProcessListData]):
             logger.warning(
                 "Mojo optimization requested but not available. "
                 "Falling back to Python implementation."
+            )
+        elif self.use_mojo:
+            logger.info(
+                f"Using Mojo optimization for process collection (max {max_processes} processes)"
             )
 
     async def collect(self) -> ProcessListData:
