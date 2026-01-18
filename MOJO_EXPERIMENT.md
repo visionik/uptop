@@ -27,6 +27,13 @@ Simple demo entry point that:
 - Collects memory metrics (RAM, swap usage)
 - Displays results in a readable format
 
+### `uptop.mojo`
+Hybrid entry point for uptop with dual modes:
+- `--mojo-metrics`: Native Mojo metrics collection (fast, lightweight demo)
+- `--python`: Full Python implementation with CLI/TUI (default)
+- Passes command-line arguments through to Python version
+- Demonstrates seamless Python/Mojo interop
+
 ## Running the Mojo Version
 
 ### Prerequisites
@@ -39,6 +46,8 @@ pip install mojo --extra-index-url https://modular.gateway.scarf.sh/simple/
 ```
 
 ### Run
+
+**Option 1: Simple metrics demo (main.mojo)**
 ```bash
 # Point Mojo to the Python venv with psutil
 MOJO_PYTHON=.venv/bin/python mojo main.mojo
@@ -47,27 +56,50 @@ MOJO_PYTHON=.venv/bin/python mojo main.mojo
 MOJO_PYTHON=.venv/bin/python uvx --from mojo-compiler mojo main.mojo
 ```
 
+**Option 2: Full uptop with Mojo entry point (uptop.mojo)**
+```bash
+# Show Mojo metrics (fast)
+MOJO_PYTHON=.venv/bin/python uvx --from mojo-compiler mojo uptop.mojo --mojo-metrics
+
+# Run full Python CLI with JSON output
+MOJO_PYTHON=.venv/bin/python uvx --from mojo-compiler mojo uptop.mojo --python --json --once
+
+# Run full Python TUI (interactive)
+MOJO_PYTHON=.venv/bin/python uvx --from mojo-compiler mojo uptop.mojo --python
+
+# Default (runs Python version)
+MOJO_PYTHON=.venv/bin/python uvx --from mojo-compiler mojo uptop.mojo
+```
+
 ## Architecture
 
+### Current Implementation
+
 ```
-┌─────────────────────────────────────┐
-│         main.mojo (entry)           │
-│   - Collect & display metrics       │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│      metrics.mojo (Mojo native)     │
-│   - CPUMetrics struct               │
-│   - MemoryMetrics struct            │
-│   - Fast data collection            │
-└──────────────┬──────────────────────┘
-               │ Python interop
-               ▼
-┌─────────────────────────────────────┐
-│       psutil (Python library)       │
-│   - System metrics via OS APIs      │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│           uptop.mojo (entry point)              │
+│   - Argument parsing                            │
+│   - Mode selection (--mojo-metrics/--python)    │
+└──────────────┬──────────────────┬───────────────┘
+               │                  │
+     --mojo-metrics         --python (default)
+               │                  │
+               ▼                  ▼
+    ┌──────────────────┐  ┌────────────────────┐
+    │  metrics.mojo    │  │  Python uptop      │
+    │  (Mojo native)   │  │  (full features)   │
+    │  - CPUMetrics    │  │  - CLI (Typer)     │
+    │  - MemoryMetrics │  │  - TUI (Textual)   │
+    │  - Fast display  │  │  - All plugins     │
+    └────────┬─────────┘  └────────┬───────────┘
+             │                     │
+             └──────┬──────────────┘
+                    │ Python interop
+                    ▼
+         ┌────────────────────────┐
+         │  psutil (Python lib)   │
+         │  - OS-level metrics    │
+         └────────────────────────┘
 ```
 
 ## Performance Comparison
