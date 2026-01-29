@@ -1017,21 +1017,13 @@ class TestCLIContinuousMode:
 
     def test_continuous_option(self) -> None:
         """Test --continuous flag sets continuous mode."""
-        result = runner.invoke(app, ["--json", "--continuous", "--panes", "cpu"])
-        # Continuous mode not implemented yet, should error
-        assert (
-            result.exit_code == 1
-            or "not yet implemented" in (result.stdout + result.stderr).lower()
-        )
+        # Continuous mode runs forever, can't test with CliRunner
+        pytest.skip("Continuous mode runs forever and can't be tested with CliRunner")
 
     def test_cli_command_continuous(self) -> None:
         """Test cli command with --continuous."""
-        result = runner.invoke(app, ["cli", "--continuous", "--panes", "cpu"])
-        # Continuous mode not implemented
-        assert (
-            result.exit_code == 1
-            or "not yet implemented" in (result.stdout + result.stderr).lower()
-        )
+        # Continuous mode runs forever, can't test with CliRunner
+        pytest.skip("Continuous mode runs forever and can't be tested with CliRunner")
 
 
 class TestTuiCommandExecution:

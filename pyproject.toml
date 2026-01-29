@@ -67,7 +67,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
-addopts = "--cov=src --cov-report=html --cov-report=term-missing"
+addopts = "--cov=src --cov-report=html --cov-report=term-missing --timeout=10"
+timeout = 10
+timeout_method = "thread"
 
 [tool.coverage.run]
 source = ["src"]
