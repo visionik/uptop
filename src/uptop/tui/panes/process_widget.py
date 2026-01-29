@@ -125,12 +125,13 @@ COLUMN_CONFIG: dict[ProcessColumn, tuple[str, int | None, bool]] = {
     ProcessColumn.COMMAND: ("Command", None, True),  # None = flexible width
 }
 
-# Sort cycling order: CPU% -> MEM% -> PID -> User -> Command -> (repeat)
+# Sort cycling order: CPU% -> MEM% -> PID -> User -> Runtime -> Command -> (repeat)
 SORT_CYCLE_ORDER: list[ProcessColumn] = [
     ProcessColumn.CPU,
     ProcessColumn.MEM,
     ProcessColumn.PID,
     ProcessColumn.USER,
+    ProcessColumn.RUNTIME,
     ProcessColumn.COMMAND,
 ]
 
@@ -552,8 +553,13 @@ class ProcessWidget(Widget):
                 pass  # Label not found or not mounted yet
             return
 
-        table = self.query_one("#process-table", DataTable)
-        summary = self.query_one("#summary-bar", Label)
+        # Try to get table and summary - may not exist during recompose
+        try:
+            table = self.query_one("#process-table", DataTable)
+            summary = self.query_one("#summary-bar", Label)
+        except Exception:
+            # Widgets not ready yet (e.g., during layout switch/recompose)
+            return
 
         # Filter processes first
         filtered_processes = [p for p in data.processes if self._matches_filter(p)]
@@ -612,6 +618,7 @@ class ProcessWidget(Widget):
             saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0
         )
         if row_count > 0 and has_position_to_restore:
+
             def restore_scroll() -> None:
                 """Restore scroll position after layout."""
                 if saved_cursor_row is not None and table.row_count > 0:
@@ -633,7 +640,11 @@ class ProcessWidget(Widget):
         if not self.is_mounted:
             return None
 
-        table = self.query_one("#process-table", DataTable)
+        try:
+            table = self.query_one("#process-table", DataTable)
+        except Exception:
+            # Table not available (e.g., during recompose)
+            return None
 
         if table.cursor_row is None or table.row_count == 0:
             return None
@@ -780,7 +791,7 @@ class ProcessWidget(Widget):
     def cycle_sort(self) -> None:
         """Cycle through sort columns in predefined order.
 
-        Cycles through: CPU% -> MEM% -> PID -> User -> Command -> (repeat)
+        Cycles through: CPU% -> MEM% -> PID -> User -> Runtime -> Command -> (repeat)
         When cycling to a new column, defaults to descending order.
         """
         try:

@@ -12,11 +12,15 @@ Usage:
     uptop tui                # Explicit TUI mode
     uptop cli --json         # Explicit CLI mode
     uptop --json             # Inferred CLI mode (format flag present)
+    uptop serve              # Web UI mode (TUI in browser)
     uptop --check-plugins    # Validate all registered plugins
 
 Examples:
     # Start interactive TUI monitor
     uptop
+
+    # Serve uptop as a web application
+    uptop serve --port 8080
 
     # Output system metrics as JSON (single snapshot)
     uptop --json --once
@@ -150,8 +154,7 @@ def validate_plugin(
             current_major = int(API_VERSION.split(".")[0])
             if plugin_major != current_major:
                 errors.append(
-                    f"Incompatible API version {plugin_api_version} "
-                    f"(expected {API_VERSION})"
+                    f"Incompatible API version {plugin_api_version} " f"(expected {API_VERSION})"
                 )
         except (ValueError, IndexError):
             errors.append(f"Invalid API version format: {plugin_api_version}")
@@ -165,15 +168,11 @@ def validate_plugin(
             errors.append("Missing collect_data method")
 
         # Check render_tui method
-        if not hasattr(plugin, "render_tui") or not callable(
-            getattr(plugin, "render_tui", None)
-        ):
+        if not hasattr(plugin, "render_tui") or not callable(getattr(plugin, "render_tui", None)):
             errors.append("Missing render_tui method")
 
         # Check get_schema method and validate it returns a Pydantic model
-        if not hasattr(plugin, "get_schema") or not callable(
-            getattr(plugin, "get_schema", None)
-        ):
+        if not hasattr(plugin, "get_schema") or not callable(getattr(plugin, "get_schema", None)):
             errors.append("Missing get_schema method")
         else:
             try:
@@ -186,25 +185,17 @@ def validate_plugin(
                 errors.append(f"get_schema raised error: {e}")
 
     elif isinstance(plugin, CollectorPlugin):
-        if not hasattr(plugin, "collect") or not callable(
-            getattr(plugin, "collect", None)
-        ):
+        if not hasattr(plugin, "collect") or not callable(getattr(plugin, "collect", None)):
             errors.append("Missing collect method")
 
     elif isinstance(plugin, FormatterPlugin):
-        if not hasattr(plugin, "format") or not callable(
-            getattr(plugin, "format", None)
-        ):
+        if not hasattr(plugin, "format") or not callable(getattr(plugin, "format", None)):
             errors.append("Missing format method")
 
     elif isinstance(plugin, ActionPlugin):
-        if not hasattr(plugin, "can_execute") or not callable(
-            getattr(plugin, "can_execute", None)
-        ):
+        if not hasattr(plugin, "can_execute") or not callable(getattr(plugin, "can_execute", None)):
             errors.append("Missing can_execute method")
-        if not hasattr(plugin, "execute") or not callable(
-            getattr(plugin, "execute", None)
-        ):
+        if not hasattr(plugin, "execute") or not callable(getattr(plugin, "execute", None)):
             errors.append("Missing execute method")
 
     return PluginValidationResult(
@@ -284,14 +275,10 @@ def check_plugins_callback(value: bool) -> None:
     # Display results
     for result in results:
         if result.valid:
-            console.print(
-                f"[green]\u2713[/green] {result.name} (v{result.version}) - OK"
-            )
+            console.print(f"[green]\u2713[/green] {result.name} (v{result.version}) - OK")
         else:
             error_detail = result.errors[0] if result.errors else "Unknown error"
-            console.print(
-                f"[red]\u2717[/red] {result.name} (v{result.version}) - {error_detail}"
-            )
+            console.print(f"[red]\u2717[/red] {result.name} (v{result.version}) - {error_detail}")
             # Show additional errors if any
             for error in result.errors[1:]:
                 console.print(f"    [dim]{error}[/dim]")
@@ -300,9 +287,7 @@ def check_plugins_callback(value: bool) -> None:
     total = valid_count + invalid_count
     console.print()
     if invalid_count == 0:
-        console.print(
-            f"[green]{total} plugins checked, all valid[/green]"
-        )
+        console.print(f"[green]{total} plugins checked, all valid[/green]")
     else:
         console.print(
             f"{total} plugins checked, "
@@ -766,14 +751,35 @@ def cli_command(
     run_uptop(cfg, query=query, pane_names=pane_names)
 
 
-@app.command("serve")
+@app.command(
+    "serve",
+    help="""Serve uptop as a web application accessible via browser.
+
+This command uses Textual's built-in web server to run the TUI interface
+in a browser instead of the terminal. The web interface provides the same
+interactive experience as the terminal version.
+
+\b
+Examples:
+  # Serve on default port 8000
+  uptop serve
+
+  # Serve on custom port
+  uptop serve --port 8080
+
+  # Make accessible from other machines on the network
+  uptop serve --host 0.0.0.0 --port 8000
+
+  # Then visit http://localhost:8000 in your browser
+""",
+)
 def serve_command(
     port: Annotated[
         int,
         typer.Option(
             "--port",
             "-p",
-            help="Port to serve on",
+            help="Port to serve the web application on",
         ),
     ] = 8000,
     host: Annotated[
@@ -781,14 +787,36 @@ def serve_command(
         typer.Option(
             "--host",
             "-H",
-            help="Host to bind to",
+            help="Host address to bind to (use 0.0.0.0 for all interfaces)",
         ),
     ] = "localhost",
 ) -> None:
-    """Serve uptop as a web application."""
-    from textual_serve.server import Server
+    """Serve uptop as a web application accessible via browser.
 
-    server = Server(f"{sys.argv[0]} tui", host=host, port=port, title="uptop")
+    Uses Textual's web server to provide the TUI interface through a web browser.
+    The web interface provides the same interactive monitoring capabilities as the
+    terminal version, making it accessible from any device with a browser.
+
+    Args:
+        port: TCP port number to bind the web server to (default: 8000)
+        host: Host address to bind to. Use 'localhost' for local-only access,
+              or '0.0.0.0' to allow connections from other machines on the network.
+
+    Examples:
+        Serve on default port 8000 (localhost only):
+            $ uptop serve
+
+        Serve on custom port:
+            $ uptop serve --port 8080
+
+        Make accessible from other machines:
+            $ uptop serve --host 0.0.0.0 --port 8000
+
+        Then visit http://localhost:8000 (or http://<your-ip>:8000) in your browser.
+    """
+    from uptop.serve import UptopServer
+
+    server = UptopServer(f"{sys.argv[0]} tui", host=host, port=port, title="uptop")
     server.serve()
 
 
@@ -833,7 +861,21 @@ def run_uptop(
         pane_names: Optional list of pane names to collect (CLI mode only)
         debug_mode: Enable performance profiling and debug output
     """
+    from uptop.sentry import add_breadcrumb, record_app_start, set_uptop_context
+
     mode = config.default_mode
+
+    # Set Sentry context for error tracking
+    set_uptop_context(
+        mode=mode,
+        panes=pane_names,
+        debug_mode=debug_mode,
+    )
+    add_breadcrumb(f"Starting uptop in {mode} mode", category="lifecycle")
+
+    # Record app start metrics
+    pane_count = len(pane_names) if pane_names else 5  # Default pane count
+    record_app_start(mode, pane_count)
 
     if mode == "tui":
         # Import here to avoid loading Textual when not needed

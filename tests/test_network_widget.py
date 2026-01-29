@@ -7,64 +7,46 @@ from uptop.plugins.network import ConnectionData, NetworkData, NetworkInterfaceD
 from uptop.tui.panes.network_widget import (
     NetworkWidget,
     format_bytes,
-    format_rate,
 )
 
 
 class TestFormatBytes:
-    """Tests for the format_bytes function."""
+    """Tests for the format_bytes function.
+
+    Note: format_bytes always converts to KB or larger (never plain bytes).
+    """
 
     def test_format_bytes_zero(self) -> None:
         """Test formatting zero bytes."""
-        assert format_bytes(0) == "0.0 B"
+        assert format_bytes(0) == "0.0KB"
 
     def test_format_bytes_small(self) -> None:
         """Test formatting small byte values."""
-        assert format_bytes(100) == "100.0 B"
-        assert format_bytes(500) == "500.0 B"
+        assert format_bytes(100) == "0.1KB"
+        assert format_bytes(500) == "0.5KB"
 
     def test_format_bytes_kilobytes(self) -> None:
         """Test formatting kilobyte values."""
-        assert format_bytes(1024) == "1.0 KB"
-        assert format_bytes(1536) == "1.5 KB"
-        assert format_bytes(10240) == "10.0 KB"
+        assert format_bytes(1024) == "1.0KB"
+        assert format_bytes(1536) == "1.5KB"
+        assert format_bytes(10240) == "10.0KB"
 
     def test_format_bytes_megabytes(self) -> None:
         """Test formatting megabyte values."""
-        assert format_bytes(1024 * 1024) == "1.0 MB"
-        assert format_bytes(1.5 * 1024 * 1024) == "1.5 MB"
+        assert format_bytes(1024 * 1024) == "1.0MB"
+        assert format_bytes(1.5 * 1024 * 1024) == "1.5MB"
 
     def test_format_bytes_gigabytes(self) -> None:
         """Test formatting gigabyte values."""
-        assert format_bytes(1024 * 1024 * 1024) == "1.0 GB"
+        assert format_bytes(1024 * 1024 * 1024) == "1.0GB"
 
     def test_format_bytes_terabytes(self) -> None:
         """Test formatting terabyte values."""
-        assert format_bytes(1024 * 1024 * 1024 * 1024) == "1.0 TB"
+        assert format_bytes(1024 * 1024 * 1024 * 1024) == "1.0TB"
 
     def test_format_bytes_petabytes(self) -> None:
         """Test formatting petabyte values."""
-        assert format_bytes(1024 * 1024 * 1024 * 1024 * 1024) == "1.0 PB"
-
-
-class TestFormatRate:
-    """Tests for the format_rate function."""
-
-    def test_format_rate_zero(self) -> None:
-        """Test formatting zero rate."""
-        assert format_rate(0) == "0.0 B/s"
-
-    def test_format_rate_kilobytes(self) -> None:
-        """Test formatting kilobyte rates."""
-        assert format_rate(1024) == "1.0 KB/s"
-
-    def test_format_rate_megabytes(self) -> None:
-        """Test formatting megabyte rates."""
-        assert format_rate(1024 * 1024) == "1.0 MB/s"
-
-    def test_format_rate_fractional(self) -> None:
-        """Test formatting fractional rates."""
-        assert format_rate(1.5 * 1024) == "1.5 KB/s"
+        assert format_bytes(1024 * 1024 * 1024 * 1024 * 1024) == "1.0PB"
 
 
 class TestNetworkWidget:
@@ -119,13 +101,13 @@ class TestNetworkWidget:
         row = widget._format_interface_row(iface)
 
         assert row[0] == "eth0"  # name
-        assert row[1] == "UP"  # status
-        assert "1.0 KB/s" in row[2]  # tx_rate
-        assert "2.0 KB/s" in row[3]  # rx_rate
-        assert "1.0 MB" in row[4]  # tx_total
-        assert "2.0 MB" in row[5]  # rx_total
-        assert row[6] == "-"  # errors (none)
-        assert row[7] == "-"  # drops (none)
+        assert row[1] == "●"  # status (up indicator)
+        assert "1.0KB" in row[2]  # tx_rate
+        assert "2.0KB" in row[3]  # rx_rate
+        assert "1.0MB" in row[4]  # tx_total
+        assert "2.0MB" in row[5]  # rx_total
+        assert row[6] == "0"  # errors (none)
+        assert row[7] == "0"  # drops (none)
 
     def test_format_interface_row_with_errors(self) -> None:
         """Test formatting an interface row with errors and drops."""
@@ -169,7 +151,7 @@ class TestNetworkWidget:
         )
 
         row = widget._format_interface_row(iface)
-        assert row[1] == "DOWN"
+        assert row[1] == "○"  # down indicator
 
     def test_has_traffic_true(self) -> None:
         """Test _has_traffic with active traffic."""

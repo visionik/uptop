@@ -1,7 +1,13 @@
 """Tests for Process Pane Plugin."""
 
 from collections import namedtuple
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from typing import Any
 from unittest.mock import MagicMock, patch
 

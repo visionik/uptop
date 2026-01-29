@@ -7,7 +7,13 @@ with configurable size limits, age-based expiration, and memory management.
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from typing import Generic, TypeVar
 
 from uptop.models.base import MetricData

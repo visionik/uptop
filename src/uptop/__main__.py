@@ -3,6 +3,10 @@
 import sys
 
 from uptop.cli import cli_main
+from uptop.sentry import init_sentry
+
+# Initialize Sentry for error tracking (must be done early)
+init_sentry()
 
 
 def main() -> int:

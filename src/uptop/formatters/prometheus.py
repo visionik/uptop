@@ -9,8 +9,14 @@ Format specification: https://prometheus.io/docs/instrumenting/exposition_format
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import re
-from datetime import UTC, datetime
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from typing import Any
 
 from pydantic import BaseModel
@@ -243,26 +249,16 @@ class PrometheusFormatter(FormatterPlugin):
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 # Scalar numeric value
                 lines.extend(
-                    self._format_scalar(
-                        metric_name, value, base_labels, metric_type, timestamp_ms
-                    )
+                    self._format_scalar(metric_name, value, base_labels, metric_type, timestamp_ms)
                 )
 
             elif isinstance(value, list):
                 # List of items (e.g., CPU cores, interfaces)
-                lines.extend(
-                    self._format_list(
-                        metric_name, value, base_labels, timestamp_ms
-                    )
-                )
+                lines.extend(self._format_list(metric_name, value, base_labels, timestamp_ms))
 
             elif isinstance(value, dict):
                 # Nested object
-                lines.extend(
-                    self._format_dict(
-                        metric_name, value, base_labels, None, timestamp_ms
-                    )
-                )
+                lines.extend(self._format_dict(metric_name, value, base_labels, None, timestamp_ms))
 
             elif isinstance(value, BaseModel):
                 # Nested Pydantic model

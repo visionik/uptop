@@ -20,7 +20,9 @@ from textual.widgets import Label, LoadingIndicator, Static
 class LoadingMessage(Static):
     """Widget displaying loading status message."""
 
-    DEFAULT_CSS: ClassVar[str] = """
+    DEFAULT_CSS: ClassVar[
+        str
+    ] = """
     LoadingMessage {
         width: auto;
         height: auto;
@@ -83,7 +85,9 @@ class LoadingScreen(Screen[None]):
     process when plugins are being initialized.
     """
 
-    DEFAULT_CSS: ClassVar[str] = """
+    DEFAULT_CSS: ClassVar[
+        str
+    ] = """
     LoadingScreen {
         background: $background;
         align: center middle;

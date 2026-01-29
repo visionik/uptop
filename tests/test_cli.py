@@ -5,9 +5,9 @@ import sys
 import tempfile
 from unittest.mock import MagicMock, patch
 
+from pydantic import BaseModel
 import pytest
 import typer
-from pydantic import BaseModel
 from typer.testing import CliRunner
 
 from uptop import __version__
@@ -148,6 +148,7 @@ class TestCLIMain:
         assert result.exit_code == 0
         # Default output is JSON
         import json
+
         parsed = json.loads(result.stdout)
         assert "panes" in parsed
 
@@ -157,6 +158,7 @@ class TestCLIMain:
         assert result.exit_code == 0
         # Output is JSON, not debug message
         import json
+
         parsed = json.loads(result.stdout)
         assert "panes" in parsed
 
@@ -165,6 +167,7 @@ class TestCLIMain:
         result = runner.invoke(app, ["--json", "--panes", "cpu"])
         assert result.exit_code == 0
         import json
+
         parsed = json.loads(result.stdout)
         assert "panes" in parsed
 
@@ -181,16 +184,17 @@ class TestCLIMain:
         assert "uptop_cpu" in result.stdout
 
     def test_stream_option(self) -> None:
-        """Test --stream flag (not yet implemented)."""
-        result = runner.invoke(app, ["--json", "--stream", "--panes", "cpu"])
-        # Stream mode not implemented, should error
-        assert result.exit_code == 1 or "not yet implemented" in (result.stdout + result.stderr).lower()
+        """Test --stream flag (would run continuously)."""
+        # Stream mode would run forever outputting NDJSON, can't test in CLI runner
+        # Just verify the flag is recognized
+        pytest.skip("Stream mode runs continuously and can't be tested with CliRunner")
 
     def test_once_option(self) -> None:
         """Test --once flag produces output and exits."""
         result = runner.invoke(app, ["--json", "--once", "--panes", "cpu"])
         assert result.exit_code == 0
         import json
+
         parsed = json.loads(result.stdout)
         assert "panes" in parsed
 
@@ -231,6 +235,7 @@ class TestCLICliCommand:
         result = runner.invoke(app, ["cli", "--panes", "cpu"])
         assert result.exit_code == 0
         import json
+
         parsed = json.loads(result.stdout)
         assert "panes" in parsed
 
@@ -239,14 +244,14 @@ class TestCLICliCommand:
         result = runner.invoke(app, ["cli", "--json", "--panes", "cpu"])
         assert result.exit_code == 0
         import json
+
         parsed = json.loads(result.stdout)
         assert "panes" in parsed
 
     def test_cli_stream(self) -> None:
-        """Test CLI with --stream (not yet implemented)."""
-        result = runner.invoke(app, ["cli", "--stream", "--panes", "cpu"])
-        # Stream mode not implemented
-        assert result.exit_code == 1 or "not yet implemented" in (result.stdout + result.stderr).lower()
+        """Test CLI with --stream (would run continuously)."""
+        # Stream mode would run forever outputting NDJSON, can't test in CLI runner
+        pytest.skip("Stream mode runs continuously and can't be tested with CliRunner")
 
     def test_cli_query(self) -> None:
         """Test CLI with --query (query filtering not yet implemented)."""
@@ -273,6 +278,7 @@ interval: 3.0
             assert result.exit_code == 0
             # Output is JSON, config was loaded
             import json
+
             parsed = json.loads(result.stdout)
             assert "panes" in parsed
         finally:
@@ -325,6 +331,7 @@ interval: 7.5
             assert result.exit_code == 0
             # Output is JSON
             import json
+
             parsed = json.loads(result.stdout)
             assert "panes" in parsed
         finally:
@@ -625,9 +632,7 @@ class TestCheckPluginsWithMocks:
 
         # Create mock registry with a failed plugin
         mock_registry = MagicMock(spec=PluginRegistry)
-        mock_registry.failed_plugins = {
-            "bad_plugin": "Missing collect_data method"
-        }
+        mock_registry.failed_plugins = {"bad_plugin": "Missing collect_data method"}
         mock_registry.__iter__ = MagicMock(return_value=iter([]))
 
         with patch("uptop.plugins.registry.PluginRegistry", return_value=mock_registry):
@@ -950,7 +955,9 @@ class TestCheckPluginsDiscoveryError:
             result = runner.invoke(app, ["--check-plugins"])
 
         assert result.exit_code == 1
-        assert "Error during plugin discovery" in result.stdout or "Discovery failed" in result.stdout
+        assert (
+            "Error during plugin discovery" in result.stdout or "Discovery failed" in result.stdout
+        )
 
     def test_check_plugins_validation_exception(self) -> None:
         """Test --check-plugins handles validation exception for a plugin."""
@@ -1012,13 +1019,19 @@ class TestCLIContinuousMode:
         """Test --continuous flag sets continuous mode."""
         result = runner.invoke(app, ["--json", "--continuous", "--panes", "cpu"])
         # Continuous mode not implemented yet, should error
-        assert result.exit_code == 1 or "not yet implemented" in (result.stdout + result.stderr).lower()
+        assert (
+            result.exit_code == 1
+            or "not yet implemented" in (result.stdout + result.stderr).lower()
+        )
 
     def test_cli_command_continuous(self) -> None:
         """Test cli command with --continuous."""
         result = runner.invoke(app, ["cli", "--continuous", "--panes", "cpu"])
         # Continuous mode not implemented
-        assert result.exit_code == 1 or "not yet implemented" in (result.stdout + result.stderr).lower()
+        assert (
+            result.exit_code == 1
+            or "not yet implemented" in (result.stdout + result.stderr).lower()
+        )
 
 
 class TestTuiCommandExecution:

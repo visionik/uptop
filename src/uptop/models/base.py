@@ -8,7 +8,13 @@ This module defines the foundational data models that all uptop components use:
 - Counter, Gauge: Annotated type aliases for typed metric fields
 """
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+# UTC was added to datetime in Python 3.11. For earlier versions, we use timezone.utc.
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from enum import Enum
 from typing import Annotated, Any
 

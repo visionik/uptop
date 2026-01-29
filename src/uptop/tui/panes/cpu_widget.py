@@ -101,7 +101,9 @@ class HiResProgressBar(Static):
     Provides 8 sub-character levels of precision for smooth progress display.
     """
 
-    DEFAULT_CSS: ClassVar[str] = """
+    DEFAULT_CSS: ClassVar[
+        str
+    ] = """
     HiResProgressBar {
         width: 1fr;
         height: 1;
@@ -273,8 +275,8 @@ class CoreUsageRow(Widget):
 
     def compose(self) -> ComposeResult:
         """Compose the core usage row with label and progress bar."""
-        # Format: "  n: xx%" where n is 3-char padded, xx is 2-digit percent
-        label_text = f"{self.core_id:3d}: {int(self.usage_percent):02d}%"
+        # Format: "  n: xx%" where n is 3-char padded (1-based), xx is 2-digit percent
+        label_text = f"{self.core_id + 1:3d}: {int(self.usage_percent):02d}%"
         yield Label(label_text, classes="core-label")
         yield HiResProgressBar(percent=self.usage_percent, id=f"core-bar-{self.core_id}")
 
@@ -432,27 +434,27 @@ class CPUWidget(Widget):
                 yield Label(f"CPU {int(usage)}%", classes="micro-label")
 
             case DisplayMode.MINIMIZED:
-                # Current implementation - sparkline + total + cores + load/freq
+                # Compact: sparkline + total CPU only
                 yield from self._compose_minimized()
 
             case DisplayMode.MEDIUM:
-                # Same as minimized for now (placeholder for future enhancements)
-                yield from self._compose_minimized()
+                # Standard: sparkline + total + cores (2 per row) + load/freq
+                yield from self._compose_medium()
 
             case DisplayMode.MAXIMIZED:
-                # Same as minimized for now (placeholder for future enhancements)
-                yield from self._compose_minimized()
+                # Full: sparkline + total + cores (1 per row) + load/freq
+                yield from self._compose_maximized()
 
     def _compose_minimized(self) -> ComposeResult:
-        """Compose the minimized layout (also used for MEDIUM and MAXIMIZED).
+        """Compose the minimized layout - sparkline and total CPU only.
 
         Yields:
             Child widgets for minimized display mode
         """
-        # Sparkline for CPU usage history (first row, full width, no label)
+        # Sparkline for CPU usage history
         yield Sparkline(
             values=list(self._usage_history),
-            width=0,  # Auto-width based on container
+            width=0,
             min_value=0.0,
             max_value=100.0,
             show_label=False,
@@ -473,6 +475,36 @@ class CPUWidget(Widget):
                 id="total-progress",
             )
 
+    def _compose_medium(self) -> ComposeResult:
+        """Compose the medium layout - full display with 2 cores per row.
+
+        Yields:
+            Child widgets for medium display mode
+        """
+        # Sparkline for CPU usage history
+        yield Sparkline(
+            values=list(self._usage_history),
+            width=0,
+            min_value=0.0,
+            max_value=100.0,
+            show_label=False,
+            history_size=self._history_size,
+            id="cpu-sparkline",
+            classes="sparkline-row",
+        )
+
+        # Total CPU usage section
+        usage = self.cpu_data.total_usage_percent
+        with Horizontal(classes="total-row", id="total-row"):
+            yield Label(
+                f"All: {int(usage):02d}%",
+                classes="total-label",
+            )
+            yield HiResProgressBar(
+                percent=usage,
+                id="total-progress",
+            )
+
         # Per-core usage section (two columns)
         if self.cpu_data.cores:
             cores = self.cpu_data.cores
@@ -480,19 +512,67 @@ class CPUWidget(Widget):
                 # Pair cores into rows of 2
                 for i in range(0, len(cores), 2):
                     with Horizontal(classes="core-row"):
-                        # First core in pair
                         yield CoreUsageRow(
                             core_id=cores[i].id,
                             usage_percent=cores[i].usage_percent,
                             id=f"core-{cores[i].id}",
                         )
-                        # Second core in pair (if exists)
                         if i + 1 < len(cores):
                             yield CoreUsageRow(
                                 core_id=cores[i + 1].id,
                                 usage_percent=cores[i + 1].usage_percent,
                                 id=f"core-{cores[i + 1].id}",
                             )
+
+        # Load averages
+        yield Static(self._render_load_averages(), classes="load-avg-row")
+
+        # Frequency info (if any core has it)
+        freq_text = self._render_frequency_info()
+        if freq_text:
+            yield Static(freq_text, classes="freq-row")
+
+    def _compose_maximized(self) -> ComposeResult:
+        """Compose the maximized layout - full display with 1 core per row.
+
+        Yields:
+            Child widgets for maximized display mode
+        """
+        # Sparkline for CPU usage history
+        yield Sparkline(
+            values=list(self._usage_history),
+            width=0,
+            min_value=0.0,
+            max_value=100.0,
+            show_label=False,
+            history_size=self._history_size,
+            id="cpu-sparkline",
+            classes="sparkline-row",
+        )
+
+        # Total CPU usage section
+        usage = self.cpu_data.total_usage_percent
+        with Horizontal(classes="total-row", id="total-row"):
+            yield Label(
+                f"All: {int(usage):02d}%",
+                classes="total-label",
+            )
+            yield HiResProgressBar(
+                percent=usage,
+                id="total-progress",
+            )
+
+        # Per-core usage section (one core per row)
+        if self.cpu_data.cores:
+            cores = self.cpu_data.cores
+            with Vertical(classes="cores-container"):
+                for core in cores:
+                    with Horizontal(classes="core-row"):
+                        yield CoreUsageRow(
+                            core_id=core.id,
+                            usage_percent=core.usage_percent,
+                            id=f"core-{core.id}",
+                        )
 
         # Load averages
         yield Static(self._render_load_averages(), classes="load-avg-row")

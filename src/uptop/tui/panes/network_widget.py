@@ -318,6 +318,7 @@ class NetworkWidget(Widget):
             saved_cursor_row is not None or saved_scroll_x > 0 or saved_scroll_y > 0
         )
         if row_count > 0 and has_position_to_restore:
+
             def restore_scroll() -> None:
                 """Restore scroll position after layout."""
                 if saved_cursor_row is not None and table.row_count > 0:

@@ -36,12 +36,12 @@ tasks:
   test:
     desc: Run tests
     cmds:
-      - pytest tests/
+      - SENTRY_DSN="" pytest tests/
 
   test:coverage:
     desc: Run tests with coverage (≥75%)
     cmds:
-      - pytest --cov=src --cov-report=html --cov-report=term-missing tests/
+      - SENTRY_DSN="" pytest --cov=src --cov-report=html --cov-report=term-missing tests/
       - echo "Coverage report generated in htmlcov/index.html"
 
   quality:

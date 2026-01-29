@@ -15,7 +15,13 @@ import asyncio
 from collections.abc import Callable, Coroutine
 import contextlib
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timezone
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 import logging
 from typing import Any
 
@@ -541,9 +547,7 @@ class CollectionScheduler:
         # Calculate time since last successful collection
         last_success_ago = None
         if info.last_successful_result:
-            last_success_ago = (
-                _utcnow() - info.last_successful_result.timestamp
-            ).total_seconds()
+            last_success_ago = (_utcnow() - info.last_successful_result.timestamp).total_seconds()
 
         return {
             "collector": info.collector.stats,

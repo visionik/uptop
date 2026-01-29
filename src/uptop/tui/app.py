@@ -15,6 +15,7 @@ This module provides:
 from __future__ import annotations
 
 import logging
+import socket
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -133,7 +134,7 @@ class UptopApp(App[None]):
         registry: The plugin registry (optional, for testing)
     """
 
-    TITLE = "uptop"
+    TITLE = f"uptop @ {socket.gethostname()}"
     SUB_TITLE = f"v{__version__}"
 
     CSS = """
@@ -229,6 +230,7 @@ class UptopApp(App[None]):
         Binding("s", "sort", "Sort"),
         Binding("k", "kill_process", "Kill"),
         Binding("m", "cycle_display_mode", "Mode"),
+        Binding("l", "cycle_layout", "Layout"),
     ]
 
     def __init__(
@@ -253,6 +255,7 @@ class UptopApp(App[None]):
         self._refresh_timers: dict[str, Timer] = {}
         self._last_good_data: dict[str, Any] = {}
         self._debug_mode = debug_mode
+        self._current_layout_index: int = 0
 
         # Initialize performance profiling if debug mode is enabled
         if debug_mode:
@@ -472,36 +475,42 @@ class UptopApp(App[None]):
         # Start loading indicator
         container.start_loading()
 
-        # Import Sentry tracing functions
-        from uptop.sentry import (
-            log_error,
-            trace_plugin_collect,
-            trace_plugin_render,
-        )
+        # Import sentry_sdk for tracing and error logging
+        import sentry_sdk
+
+        from uptop.sentry import log_error
 
         try:
-            # Collect data with tracing (includes profiling and metrics)
-            collect_start = time.monotonic()
-            with trace_plugin_collect(pane_name):
-                data = await plugin.collect_data()
+            # Use start_transaction directly instead of trace_plugin_collect
+            with sentry_sdk.start_transaction(
+                name=f"tui_refresh:{pane_name}",
+                op="plugin.refresh",
+            ) as transaction:
+                # Collect data in a child span
+                with sentry_sdk.start_span(name=f"collect:{ pane_name }") as collect_span:
+                    collect_start = time.monotonic()
+                    data = await plugin.collect_data()
 
-            # Record to internal profiler if debug mode
-            if self._debug_mode:
-                collect_time_ms = (time.monotonic() - collect_start) * 1000
-                profiler = get_profiler()
-                profiler.collector_profiler.record(pane_name, collect_time_ms)
+                if self._debug_mode:
+                    collect_time_ms = (time.monotonic() - collect_start) * 1000
+                    profiler = get_profiler()
+                    profiler.collector_profiler.record(pane_name, collect_time_ms)
 
-            # Store as last good data
-            self._last_good_data[pane_name] = data
+                # Store as last good data
+                self._last_good_data[pane_name] = data
 
             # Get size and mode from container
             size = (container.size.width, container.size.height) if container.size else None
             mode = container.display_mode
 
-            # Render the widget with tracing
-            render_start = time.monotonic()
-            with trace_plugin_render(pane_name):
-                widget = plugin.render_tui(data, size, mode)
+            # Render the widget in a transaction span
+            with sentry_sdk.start_transaction(
+                name=f"tui_render:{pane_name}",
+                op="plugin.render",
+            ) as render_txn:
+                render_start = time.monotonic()
+                with sentry_sdk.start_span(name=pane_name) as render_span:
+                    widget = plugin.render_tui(data, size, mode)
 
             # Update the container
             container.set_content(widget)
@@ -509,7 +518,6 @@ class UptopApp(App[None]):
             container.clear_error()
             container.mark_fresh()
 
-            # Record to internal profiler if debug mode
             if self._debug_mode:
                 render_time_ms = (time.monotonic() - render_start) * 1000
                 profiler = get_profiler()
@@ -757,6 +765,54 @@ class UptopApp(App[None]):
         # Only refresh if the pane has been initialized (has data)
         if message.pane_name and message.pane_name in self._last_good_data:
             await self._refresh_pane(message.pane_name)
+
+    async def action_cycle_layout(self) -> None:
+        """Cycle through available layout templates.
+
+        Cycles through: standard -> compact -> detailed -> processes-focused ->
+        split-screen -> dashboard -> standard.
+        """
+        from uptop.tui.layouts.templates import LayoutTemplates
+
+        # Get all available layout names
+        layout_names = LayoutTemplates.get_names()
+
+        # Cycle to next layout
+        self._current_layout_index = (self._current_layout_index + 1) % len(layout_names)
+        layout_name = layout_names[self._current_layout_index]
+
+        # Get the template and convert to config
+        template = LayoutTemplates.get(layout_name)
+        if not template:
+            self.notify(f"Layout '{layout_name}' not found", severity="error")
+            return
+
+        config = template.to_layout_config()
+
+        # Switch the layout
+        try:
+            grid = self.query_one(GridLayout)
+            grid.set_layout(config)
+
+            # Show notification
+            self.notify(
+                f"Layout: {template.description}",
+                title=f"Switched to '{layout_name}'",
+                timeout=2,
+            )
+
+            # Wait a moment for widgets to mount before refreshing
+            # This ensures DataTable and other stateful widgets are ready
+            import asyncio
+
+            await asyncio.sleep(0.1)
+
+            # Trigger refresh for all panes with new layout
+            await self.refresh_all_panes()
+
+        except Exception as e:
+            logger.error(f"Failed to switch layout: {e}")
+            self.notify(f"Failed to switch layout: {e}", severity="error")
 
 
 def run_app(config: Config | None = None, debug_mode: bool = False) -> None:

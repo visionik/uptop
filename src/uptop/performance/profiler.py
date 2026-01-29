@@ -9,11 +9,11 @@ This module provides profiling tools for measuring collector and render times:
 
 from __future__ import annotations
 
-import logging
-import time
 from dataclasses import dataclass, field
 from functools import wraps
+import logging
 from statistics import mean, stdev
+import time
 from typing import Any, Callable, TypeVar
 
 logger = logging.getLogger(__name__)
@@ -150,9 +150,7 @@ class CollectorProfiler:
 
         # Log slow collections
         if time_ms > 100:  # More than 100ms is considered slow
-            logger.warning(
-                f"Slow collection detected: {collector_name} took {time_ms:.1f}ms"
-            )
+            logger.warning(f"Slow collection detected: {collector_name} took {time_ms:.1f}ms")
 
     def get_stats(self, collector_name: str) -> TimingStats | None:
         """Get stats for a specific collector.
@@ -238,9 +236,7 @@ class RenderProfiler:
 
         # Log slow renders
         if time_ms > 50:  # More than 50ms is considered slow for a widget
-            logger.warning(
-                f"Slow render detected: {widget_name} took {time_ms:.1f}ms"
-            )
+            logger.warning(f"Slow render detected: {widget_name} took {time_ms:.1f}ms")
 
     def record_frame(self, time_ms: float) -> None:
         """Record a frame render time.
@@ -370,10 +366,7 @@ class PerformanceMetrics:
         frame_stats = self.render_profiler.get_frame_stats()
         if frame_stats.count > 0:
             fps = 1000.0 / frame_stats.avg_ms if frame_stats.avg_ms > 0 else 0
-            lines.append(
-                f"  Frame: avg={frame_stats.avg_ms:.1f}ms "
-                f"({fps:.1f} FPS theoretical)"
-            )
+            lines.append(f"  Frame: avg={frame_stats.avg_ms:.1f}ms " f"({fps:.1f} FPS theoretical)")
 
         for name, stats in self.render_profiler.get_all_stats().items():
             lines.append(

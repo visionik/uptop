@@ -8,7 +8,13 @@ All process metrics are gauges (current values that can go up/down).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from typing import TYPE_CHECKING, Any
 
 import psutil

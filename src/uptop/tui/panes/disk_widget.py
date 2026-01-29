@@ -360,10 +360,7 @@ class DiskWidget(Widget):
             True if the device has non-zero rates
         """
         rates = self._io_rates.get(device, {})
-        return (
-            rates.get("read_bytes_rate", 0) > 0
-            or rates.get("write_bytes_rate", 0) > 0
-        )
+        return rates.get("read_bytes_rate", 0) > 0 or rates.get("write_bytes_rate", 0) > 0
 
     def _update_io_table(self) -> None:
         """Update the I/O stats table with current data."""
@@ -416,6 +413,7 @@ class DiskWidget(Widget):
         # Restore scroll position and cursor after layout completes
         row_count = table.row_count
         if row_count > 0 and (saved_cursor_row is not None or saved_scroll_y > 0):
+
             def restore_scroll() -> None:
                 """Restore scroll position after layout."""
                 if saved_cursor_row is not None and table.row_count > 0:

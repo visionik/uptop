@@ -8,7 +8,7 @@ error handling and interval management.
 from abc import ABC, abstractmethod
 import asyncio
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import logging
 from typing import Any, Generic, TypeVar
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _utcnow() -> datetime:
     """Return current UTC time as timezone-aware datetime."""
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 @dataclass

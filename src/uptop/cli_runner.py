@@ -13,7 +13,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import UTC, datetime
+from datetime import datetime, timedelta, timezone
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 import signal
 import socket
 import sys
@@ -142,6 +148,7 @@ async def collect_pane_data(pane: PanePlugin, pane_name: str) -> tuple[str, Metr
         Tuple of (pane_name, data or None if collection failed)
     """
     import sentry_sdk
+
     from uptop.sentry import log_error
 
     try:
@@ -252,9 +259,7 @@ async def run_cli_once(
 
         if invalid_panes:
             available = get_available_panes()
-            console.print(
-                f"[red]Error: Unknown pane(s): {', '.join(invalid_panes)}[/red]"
-            )
+            console.print(f"[red]Error: Unknown pane(s): {', '.join(invalid_panes)}[/red]")
             console.print(f"[yellow]Available panes: {', '.join(available)}[/yellow]")
             return 1
 
@@ -315,9 +320,7 @@ async def run_cli_continuous(
 
         if invalid_panes:
             available = get_available_panes()
-            console.print(
-                f"[red]Error: Unknown pane(s): {', '.join(invalid_panes)}[/red]"
-            )
+            console.print(f"[red]Error: Unknown pane(s): {', '.join(invalid_panes)}[/red]")
             console.print(f"[yellow]Available panes: {', '.join(available)}[/yellow]")
             return 1
 
@@ -409,6 +412,7 @@ def run_cli_mode(
     # Load default config if not provided
     if config is None:
         from uptop.config import load_config
+
         config = load_config()
 
     if once:

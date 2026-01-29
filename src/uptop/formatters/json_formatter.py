@@ -13,8 +13,14 @@ Features:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
-from datetime import UTC, datetime
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from typing import Any
 
 from uptop.models.base import MetricData, PluginType

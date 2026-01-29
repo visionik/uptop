@@ -12,8 +12,14 @@ Tests cover:
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import json
-from datetime import UTC, datetime, timedelta
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 
 import pytest
 
@@ -385,10 +391,12 @@ class TestJsonFormatterWithRealModels:
             ),
         )
 
-        result = formatter.format({
-            "panes": {"cpu": cpu_data, "memory": memory_data},
-            "hostname": "testhost",
-        })
+        result = formatter.format(
+            {
+                "panes": {"cpu": cpu_data, "memory": memory_data},
+                "hostname": "testhost",
+            }
+        )
 
         parsed = json.loads(result)
 
@@ -463,11 +471,13 @@ class TestJsonFormatterEdgeCases:
     def test_format_preserves_extra_top_level_keys(self) -> None:
         """Test that extra keys at top level are preserved."""
         formatter = JsonFormatter()
-        result = formatter.format({
-            "panes": {},
-            "custom_key": "custom_value",
-            "another_key": 123,
-        })
+        result = formatter.format(
+            {
+                "panes": {},
+                "custom_key": "custom_value",
+                "another_key": 123,
+            }
+        )
 
         parsed = json.loads(result)
         assert parsed["custom_key"] == "custom_value"
@@ -476,10 +486,12 @@ class TestJsonFormatterEdgeCases:
     def test_format_handles_unicode(self) -> None:
         """Test that unicode characters are handled correctly."""
         formatter = JsonFormatter()
-        result = formatter.format({
-            "panes": {},
-            "hostname": "host-with-unicode-\u00e9\u00e8\u00ea",
-        })
+        result = formatter.format(
+            {
+                "panes": {},
+                "hostname": "host-with-unicode-\u00e9\u00e8\u00ea",
+            }
+        )
 
         parsed = json.loads(result)
         assert parsed["hostname"] == "host-with-unicode-\u00e9\u00e8\u00ea"

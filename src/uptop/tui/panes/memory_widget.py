@@ -161,12 +161,12 @@ class MemoryWidget(Widget):
         """Compose the memory widget based on display mode."""
         match self._display_mode:
             case DisplayMode.MICRO:
-                # Ultra-compact: single line with RAM usage %
+                # Ultra-compact: single line with physical memory usage %
                 if self.data:
                     pct = self.data.virtual.percent
-                    yield Label(f"RAM {int(pct)}%", classes="micro-label")
+                    yield Label(f"Used {int(pct)}%", classes="micro-label")
                 else:
-                    yield Label("RAM --", classes="micro-label")
+                    yield Label("Used --", classes="micro-label")
 
             case DisplayMode.MINIMIZED:
                 # Current implementation - sparkline + table
@@ -199,7 +199,15 @@ class MemoryWidget(Widget):
 
     def on_mount(self) -> None:
         """Set up the data table when mounted."""
-        table = self.query_one("#memory-table", DataTable)
+        # Skip table setup in MICRO mode - no table exists
+        if self._display_mode == DisplayMode.MICRO:
+            return
+
+        try:
+            table = self.query_one("#memory-table", DataTable)
+        except Exception:
+            return  # Table doesn't exist in this mode
+
         table.show_cursor = False
         table.zebra_stripes = False
 
@@ -242,51 +250,48 @@ class MemoryWidget(Widget):
         # Total row - max is same as current (doesn't change)
         table.add_row(
             "Total",
-            fmt(vm.total_bytes), fmt(vm.total_bytes),
-            fmt(swap.total_bytes, has_swap), fmt(swap.total_bytes, has_swap),
-            key="total"
+            fmt(vm.total_bytes),
+            fmt(vm.total_bytes),
+            fmt(swap.total_bytes, has_swap),
+            fmt(swap.total_bytes, has_swap),
+            key="total",
         )
 
         # Used row
         table.add_row(
             "Used",
-            fmt(vm.used_bytes), fmt(mx.p_used),
-            fmt(swap.used_bytes, has_swap), fmt(mx.v_used, has_swap),
-            key="used"
+            fmt(vm.used_bytes),
+            fmt(mx.p_used),
+            fmt(swap.used_bytes, has_swap),
+            fmt(mx.v_used, has_swap),
+            key="used",
         )
 
         # Free row
         table.add_row(
             "Free",
-            fmt(vm.free_bytes), fmt(mx.p_free),
-            fmt(swap.free_bytes, has_swap), fmt(mx.v_free, has_swap),
-            key="free"
+            fmt(vm.free_bytes),
+            fmt(mx.p_free),
+            fmt(swap.free_bytes, has_swap),
+            fmt(mx.v_free, has_swap),
+            key="free",
         )
 
         # Available row (swap doesn't have available)
         table.add_row(
-            "Available",
-            fmt(vm.available_bytes), fmt(mx.p_available),
-            blank, blank,
-            key="available"
+            "Available", fmt(vm.available_bytes), fmt(mx.p_available), blank, blank, key="available"
         )
 
         # Active row (macOS/Linux only, swap doesn't have)
         if vm.active_bytes is not None:
             table.add_row(
-                "Active",
-                fmt(vm.active_bytes), fmt(mx.p_active),
-                blank, blank,
-                key="active"
+                "Active", fmt(vm.active_bytes), fmt(mx.p_active), blank, blank, key="active"
             )
 
         # Inactive row (macOS/Linux only, swap doesn't have)
         if vm.inactive_bytes is not None:
             table.add_row(
-                "Inactive",
-                fmt(vm.inactive_bytes), fmt(mx.p_inactive),
-                blank, blank,
-                key="inactive"
+                "Inactive", fmt(vm.inactive_bytes), fmt(mx.p_inactive), blank, blank, key="inactive"
             )
 
     def _has_significant_change(self, new_data: MemoryData) -> bool:
@@ -322,6 +327,16 @@ class MemoryWidget(Widget):
             self._max_tracker.update(new_data)
 
         if self.is_mounted:
+            # Handle MICRO mode - just update the label
+            if self._display_mode == DisplayMode.MICRO:
+                try:
+                    label = self.query_one(".micro-label", Label)
+                    if new_data:
+                        label.update(f"Used {int(new_data.virtual.percent)}%")
+                except Exception:
+                    pass
+                return
+
             # Update sparkline
             try:
                 sparkline = self.query_one("#memory-sparkline", Sparkline)

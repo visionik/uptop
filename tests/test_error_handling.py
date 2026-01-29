@@ -7,9 +7,15 @@ This module tests:
 """
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 import os
 import tempfile
-from datetime import UTC, datetime, timedelta
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 from typing import Any
 from unittest.mock import patch
 
@@ -25,7 +31,6 @@ from uptop.config import (
     load_config,
 )
 from uptop.models.base import MetricData
-
 
 # =============================================================================
 # Test Fixtures and Mocks

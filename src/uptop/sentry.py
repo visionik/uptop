@@ -72,12 +72,18 @@ def init_sentry(
     - Default tags for filtering
 
     Args:
-        dsn: Sentry DSN (uses default if not provided)
+        dsn: Sentry DSN (uses default if not provided, empty string disables Sentry)
         traces_sample_rate: Sample rate for performance traces (0.0-1.0)
         profile_session_sample_rate: Sample rate for continuous profiling (0.0-1.0)
         debug: Enable Sentry debug mode for troubleshooting
         event_level: Minimum log level to create Sentry events (default: ERROR in prod, WARNING in dev)
     """
+    # Check if Sentry should be disabled (empty DSN from env or explicit parameter)
+    effective_dsn = dsn if dsn is not None else os.environ.get("SENTRY_DSN", SENTRY_DSN)
+    if not effective_dsn:
+        # Sentry disabled (useful for tests or when user wants to disable telemetry)
+        return
+
     # Determine event level based on environment or explicit parameter
     if event_level is None:
         # Use WARNING in development (detected by UPTOP_ENV or debug flag)
@@ -91,7 +97,7 @@ def init_sentry(
         event_level = logging.WARNING if is_development else logging.ERROR
 
     sentry_sdk.init(
-        dsn=dsn or SENTRY_DSN,
+        dsn=effective_dsn,
         traces_sample_rate=traces_sample_rate,
         profile_session_sample_rate=profile_session_sample_rate,
         profile_lifecycle="manual",  # Manual control via start_profiler/stop_profiler
@@ -159,18 +165,21 @@ def set_system_context() -> None:
     - CPU architecture
     - Terminal information
     """
-    sentry_sdk.set_context("system", {
-        "os": platform.system(),
-        "os_version": platform.release(),
-        "os_full": platform.platform(),
-        "python_version": platform.python_version(),
-        "python_implementation": platform.python_implementation(),
-        "architecture": platform.machine(),
-        "processor": platform.processor() or "unknown",
-        "terminal": os.environ.get("TERM", "unknown"),
-        "shell": os.environ.get("SHELL", "unknown"),
-        "is_tty": sys.stdout.isatty(),
-    })
+    sentry_sdk.set_context(
+        "system",
+        {
+            "os": platform.system(),
+            "os_version": platform.release(),
+            "os_full": platform.platform(),
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "architecture": platform.machine(),
+            "processor": platform.processor() or "unknown",
+            "terminal": os.environ.get("TERM", "unknown"),
+            "shell": os.environ.get("SHELL", "unknown"),
+            "is_tty": sys.stdout.isatty(),
+        },
+    )
 
 
 def set_uptop_context(
@@ -256,11 +265,14 @@ def capture_collector_error(
     """
     with sentry_sdk.push_scope() as scope:
         scope.set_tag("collector", collector_name)
-        scope.set_context("collector_error", {
-            "collector": collector_name,
-            "error_type": type(error).__name__,
-            **(extra or {}),
-        })
+        scope.set_context(
+            "collector_error",
+            {
+                "collector": collector_name,
+                "error_type": type(error).__name__,
+                **(extra or {}),
+            },
+        )
         sentry_sdk.capture_exception(error)
 
 
@@ -282,12 +294,15 @@ def capture_plugin_error(
     with sentry_sdk.push_scope() as scope:
         scope.set_tag("plugin.name", plugin_name)
         scope.set_tag("plugin.type", plugin_type)
-        scope.set_context("plugin_error", {
-            "plugin": plugin_name,
-            "type": plugin_type,
-            "error_type": type(error).__name__,
-            **(extra or {}),
-        })
+        scope.set_context(
+            "plugin_error",
+            {
+                "plugin": plugin_name,
+                "type": plugin_type,
+                "error_type": type(error).__name__,
+                **(extra or {}),
+            },
+        )
         sentry_sdk.capture_exception(error)
 
 

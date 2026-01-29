@@ -13,8 +13,14 @@ Test categories:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import re
-from datetime import UTC, datetime
+
+# UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
+try:
+    from datetime import UTC  # type: ignore
+except ImportError:
+    UTC = timezone.utc
 
 import pytest
 
@@ -127,7 +133,7 @@ class TestLabelFormatting:
         assert _sanitize_label_value(r"C:\Users") == r"C:\\Users"
 
         # Test quote escaping
-        assert _sanitize_label_value('test"value') == r'test\"value'
+        assert _sanitize_label_value('test"value') == r"test\"value"
 
         # Test newline escaping
         assert _sanitize_label_value("line1\nline2") == r"line1\nline2"
@@ -343,15 +349,15 @@ class TestMemoryDataFormatting:
             source="memory",
             virtual=VirtualMemory(
                 total_bytes=17179869184,  # 16 GB
-                used_bytes=8589934592,    # 8 GB
+                used_bytes=8589934592,  # 8 GB
                 available_bytes=8589934592,
                 percent=50.0,
                 cached_bytes=2147483648,
                 buffers_bytes=1073741824,
             ),
             swap=SwapMemory(
-                total_bytes=4294967296,   # 4 GB
-                used_bytes=1073741824,    # 1 GB
+                total_bytes=4294967296,  # 4 GB
+                used_bytes=1073741824,  # 1 GB
                 free_bytes=3221225472,
                 percent=25.0,
             ),

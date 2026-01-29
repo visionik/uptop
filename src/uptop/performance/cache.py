@@ -8,9 +8,9 @@ This module provides caching mechanisms for expensive operations:
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from functools import lru_cache, wraps
+import time
 from typing import Any, Callable, Generic, TypeVar
 
 import psutil
