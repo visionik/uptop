@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 import yaml
 
 from uptop.config.defaults import DEFAULT_CONFIG
+from uptop.plugins.ping_config import PingPluginConfig
 
 
 class ConfigError(Exception):
@@ -555,6 +556,7 @@ class Config(BaseModel):
     cli: CLIConfig = Field(default_factory=CLIConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     plugins: PluginsConfig = Field(default_factory=PluginsConfig)
+    ping: PingPluginConfig = Field(default_factory=PingPluginConfig)
     process_filters: dict[str, str] = Field(default_factory=dict)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 

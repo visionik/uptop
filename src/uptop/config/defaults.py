@@ -121,4 +121,29 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "level": "INFO",  # DEBUG, INFO, WARNING, ERROR
         "file": "~/.uptop/uptop.log",
     },
+    # Ping monitoring plugin configuration
+    "ping": {
+        "enabled": True,
+        "default_interval": 1.0,
+        "default_timeout": 2.0,
+        "concurrent_limit": 10,
+        "pings_per_check": 3,
+        "history_size": 300,
+        "default_thresholds": {
+            "warning_latency_ms": 100.0,
+            "critical_latency_ms": 500.0,
+            "warning_packet_loss_percent": 5.0,
+            "critical_packet_loss_percent": 20.0,
+        },
+        "retry_dns": {
+            "enabled": True,
+            "max_attempts": 3,
+            "backoff_seconds": [1.0, 2.0, 4.0],
+        },
+        "auto_disable": {
+            "enabled": True,
+            "consecutive_failures_threshold": 10,
+        },
+        "hosts": [],
+    },
 }
