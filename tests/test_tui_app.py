@@ -36,9 +36,11 @@ class TestUptopAppInstantiation:
         assert app.config is config
 
     def test_app_title(self) -> None:
-        """Test app has correct title."""
+        """Test app has correct title format."""
         app = UptopApp()
-        assert app.TITLE == "uptop"
+        # Title should be "uptop @ hostname"
+        assert app.TITLE.startswith("uptop")
+        assert "@" in app.TITLE
 
     def test_app_subtitle_has_version(self) -> None:
         """Test app subtitle contains version."""

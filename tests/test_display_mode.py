@@ -8,31 +8,34 @@ from uptop.models.base import DisplayMode
 class TestDisplayModeEnum:
     """Tests for DisplayMode enum."""
 
-    def test_has_three_values(self) -> None:
-        """Test enum has MINIMUM, MEDIUM, MAXIMUM."""
-        assert len(DisplayMode) == 3
-        assert DisplayMode.MINIMUM.value == "minimum"
+    def test_has_four_values(self) -> None:
+        """Test enum has MICRO, MINIMIZED, MEDIUM, MAXIMIZED."""
+        assert len(DisplayMode) == 4
+        assert DisplayMode.MICRO.value == "micro"
+        assert DisplayMode.MINIMIZED.value == "minimized"
         assert DisplayMode.MEDIUM.value == "medium"
-        assert DisplayMode.MAXIMUM.value == "maximum"
+        assert DisplayMode.MAXIMIZED.value == "maximized"
 
     def test_next_cycles_correctly(self) -> None:
         """Test next() cycles through modes."""
-        assert DisplayMode.MINIMUM.next() == DisplayMode.MEDIUM
-        assert DisplayMode.MEDIUM.next() == DisplayMode.MAXIMUM
-        assert DisplayMode.MAXIMUM.next() == DisplayMode.MINIMUM
+        assert DisplayMode.MICRO.next() == DisplayMode.MINIMIZED
+        assert DisplayMode.MINIMIZED.next() == DisplayMode.MEDIUM
+        assert DisplayMode.MEDIUM.next() == DisplayMode.MAXIMIZED
+        assert DisplayMode.MAXIMIZED.next() == DisplayMode.MICRO
 
     def test_full_cycle(self) -> None:
         """Test cycling through all modes returns to start."""
-        mode = DisplayMode.MINIMUM
+        mode = DisplayMode.MICRO
+        mode = mode.next()  # MINIMIZED
         mode = mode.next()  # MEDIUM
-        mode = mode.next()  # MAXIMUM
-        mode = mode.next()  # MINIMUM
-        assert mode == DisplayMode.MINIMUM
+        mode = mode.next()  # MAXIMIZED
+        mode = mode.next()  # MICRO
+        assert mode == DisplayMode.MICRO
 
     def test_is_string_enum(self) -> None:
         """Test DisplayMode is a string enum."""
-        assert isinstance(DisplayMode.MINIMUM, str)
-        assert DisplayMode.MINIMUM == "minimum"
+        assert isinstance(DisplayMode.MINIMIZED, str)
+        assert DisplayMode.MINIMIZED == "minimized"
 
 
 class TestPaneContainerDisplayMode:
@@ -53,12 +56,16 @@ class TestPaneContainerDisplayMode:
         assert container.display_mode == DisplayMode.MEDIUM
 
         new_mode = container.cycle_display_mode()
-        assert new_mode == DisplayMode.MAXIMUM
-        assert container.display_mode == DisplayMode.MAXIMUM
+        assert new_mode == DisplayMode.MAXIMIZED
+        assert container.display_mode == DisplayMode.MAXIMIZED
 
         new_mode = container.cycle_display_mode()
-        assert new_mode == DisplayMode.MINIMUM
-        assert container.display_mode == DisplayMode.MINIMUM
+        assert new_mode == DisplayMode.MICRO
+        assert container.display_mode == DisplayMode.MICRO
+
+        new_mode = container.cycle_display_mode()
+        assert new_mode == DisplayMode.MINIMIZED
+        assert container.display_mode == DisplayMode.MINIMIZED
 
         new_mode = container.cycle_display_mode()
         assert new_mode == DisplayMode.MEDIUM
@@ -135,7 +142,7 @@ class TestRenderTuiSignature:
         data.total_usage_percent = 50.0
 
         # Should not raise when called with size and mode
-        widget = pane.render_tui(data, size=(80, 24), mode=DisplayMode.MAXIMUM)
+        widget = pane.render_tui(data, size=(80, 24), mode=DisplayMode.MAXIMIZED)
         # Just verify it returns something (Label for invalid data in this case)
         assert widget is not None
 
@@ -149,7 +156,7 @@ class TestRenderTuiSignature:
 
         # Pass invalid data to get a Label (simpler test)
         # The point is to test the signature accepts size and mode
-        widget = pane.render_tui("invalid", size=(80, 24), mode=DisplayMode.MINIMUM)
+        widget = pane.render_tui("invalid", size=(80, 24), mode=DisplayMode.MINIMIZED)
         assert widget is not None
         assert isinstance(widget, Label)
 
