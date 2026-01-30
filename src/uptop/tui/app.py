@@ -990,6 +990,7 @@ def run_app(config: Config | None = None, debug_mode: bool = False) -> None:
     # from uptop.plugins.gpu import GPUPane  # Temporarily disabled
     from uptop.plugins.memory import MemoryPane
     from uptop.plugins.network import NetworkPane
+    from uptop.plugins.ping import PingPane
     from uptop.plugins.processes import ProcessPane
 
     registry.register(CPUPane())
@@ -997,6 +998,7 @@ def run_app(config: Config | None = None, debug_mode: bool = False) -> None:
     registry.register(ProcessPane())
     registry.register(NetworkPane())
     registry.register(DiskPane())
+    registry.register(PingPane())
     # registry.register(GPUPane())  # Temporarily disabled
 
     # Discover any external plugins
