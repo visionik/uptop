@@ -56,11 +56,13 @@ class PaneSpec:
         name: Pane identifier (e.g., "cpu", "memory", "processes")
         width: Width fraction from PaneWidth enum
         height: Height in lines from PaneHeight enum
+        available_plugins: List of plugin names available in this slot (empty = any plugin)
     """
 
     name: str
     width: PaneWidth = PaneWidth.HALF
     height: PaneHeight = PaneHeight.MEDIUM
+    available_plugins: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -164,6 +166,7 @@ class LayoutTemplate:
                         col=col_idx,
                         col_span=pane_spec.width.value,
                         height_weight=row_height.value,
+                        available_plugins=pane_spec.available_plugins.copy(),
                     )
                 )
 
@@ -176,14 +179,28 @@ class LayoutTemplate:
 
 # Predefined layout templates
 
+# Default plugin slots - users can switch between these via Ctrl+P
+# Top row slots can switch between system metrics and monitoring plugins
+# Bottom row slots are for I/O-related plugins
+
 STANDARD_LAYOUT = LayoutTemplate(
     name="standard",
     description="Default balanced layout with all panes visible",
     rows=[
         RowSpec(
             panes=[
-                PaneSpec("cpu", PaneWidth.HALF, PaneHeight.SMALL),
-                PaneSpec("memory", PaneWidth.HALF, PaneHeight.SMALL),
+                PaneSpec(
+                    "cpu",
+                    PaneWidth.HALF,
+                    PaneHeight.SMALL,
+                    available_plugins=["cpu", "ping", "gpu"],
+                ),
+                PaneSpec(
+                    "memory",
+                    PaneWidth.HALF,
+                    PaneHeight.SMALL,
+                    available_plugins=["memory", "ping"],
+                ),
             ],
         ),
         RowSpec(
@@ -193,7 +210,12 @@ STANDARD_LAYOUT = LayoutTemplate(
         ),
         RowSpec(
             panes=[
-                PaneSpec("network", PaneWidth.HALF, PaneHeight.SMALL),
+                PaneSpec(
+                    "network",
+                    PaneWidth.HALF,
+                    PaneHeight.SMALL,
+                    available_plugins=["network", "ping"],
+                ),
                 PaneSpec("disk", PaneWidth.HALF, PaneHeight.SMALL),
             ],
         ),

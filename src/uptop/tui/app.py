@@ -29,8 +29,15 @@ from textual.widgets import Footer, Header, Label, Static
 from uptop import __version__
 from uptop.performance import get_profiler
 from uptop.tui.layouts.grid import DEFAULT_LAYOUT_CONFIG, GridLayout
-from uptop.tui.messages import DisplayModeChanged, PaneResized
+from uptop.tui.messages import (
+    DisplayModeChanged,
+    LayoutSwitchRequested,
+    PaneResized,
+    PluginSwapped,
+)
 from uptop.tui.screens import (
+    CommandPaletteResult,
+    CommandPaletteScreen,
     ConfirmKillScreen,
     FilterScreen,
     HelpScreen,
@@ -231,6 +238,7 @@ class UptopApp(App[None]):
         Binding("k", "kill_process", "Kill"),
         Binding("m", "cycle_display_mode", "Mode"),
         Binding("l", "cycle_layout", "Layout"),
+        Binding("ctrl+p", "open_command_palette", "Command Palette", show=True),
     ]
 
     def __init__(
@@ -337,8 +345,13 @@ class UptopApp(App[None]):
         Yields:
             Widgets that make up the application layout
         """
+        from uptop.tui.layouts.templates import LayoutTemplates
+
         yield Header(show_clock=True)
-        yield GridLayout(config=self._config, layout_config=DEFAULT_LAYOUT_CONFIG)
+        grid = GridLayout(config=self._config, layout_config=DEFAULT_LAYOUT_CONFIG)
+        # Set available layout presets for Alt+1-6 keybindings
+        grid.set_layout_presets(LayoutTemplates.get_names())
+        yield grid
         yield Footer()
 
     @property
@@ -813,6 +826,146 @@ class UptopApp(App[None]):
         except Exception as e:
             logger.error(f"Failed to switch layout: {e}")
             self.notify(f"Failed to switch layout: {e}", severity="error")
+
+    async def action_open_command_palette(self) -> None:
+        """Open the command palette for switching plugins and layouts.
+
+        Shows a modal with fuzzy search through available plugins and layout presets.
+        """
+        from uptop.tui.layouts.templates import LayoutTemplates
+
+        if not self._plugin_registry:
+            self.notify("No plugin registry available", severity="error")
+            return
+
+        # Get currently focused pane name
+        try:
+            grid = self.query_one(GridLayout)
+            focused_pane = grid.get_focused_pane()
+            pane_name = focused_pane._get_pane_name() if focused_pane else None
+        except Exception:
+            pane_name = None
+
+        # Show command palette screen
+        result = await self.push_screen_wait(
+            CommandPaletteScreen(
+                plugin_registry=self._plugin_registry,
+                layout_templates=LayoutTemplates.ALL,
+                focused_pane=pane_name,
+            )
+        )
+
+        if result is None:
+            return
+
+        # Handle the result
+        if result.action_type == "layout":
+            # Switch to the selected layout
+            await self._switch_to_layout(result.target)
+        elif result.action_type == "plugin":
+            # Swap plugin in the focused pane
+            if result.pane_slot:
+                await self._swap_pane_plugin(result.pane_slot, result.target)
+            else:
+                self.notify("No pane focused", severity="warning")
+
+    async def _switch_to_layout(self, layout_name: str) -> None:
+        """Switch to a specific layout by name.
+
+        Args:
+            layout_name: Name of the layout to switch to
+        """
+        from uptop.tui.layouts.templates import LayoutTemplates
+
+        template = LayoutTemplates.get(layout_name)
+        if not template:
+            self.notify(f"Layout '{layout_name}' not found", severity="error")
+            return
+
+        config = template.to_layout_config()
+
+        try:
+            grid = self.query_one(GridLayout)
+            grid.set_layout(config)
+
+            self.notify(
+                f"Layout: {template.description}",
+                title=f"Switched to '{layout_name}'",
+                timeout=2,
+            )
+
+            # Wait a moment for widgets to mount before refreshing
+            import asyncio
+
+            await asyncio.sleep(0.1)
+            await self.refresh_all_panes()
+
+        except Exception as e:
+            logger.error(f"Failed to switch layout: {e}")
+            self.notify(f"Failed to switch layout: {e}", severity="error")
+
+    async def _swap_pane_plugin(self, pane_name: str, plugin_name: str) -> None:
+        """Swap the plugin in a specific pane.
+
+        Args:
+            pane_name: Name of the pane slot
+            plugin_name: Name of the plugin to load
+        """
+        try:
+            grid = self.query_one(GridLayout)
+            success = grid.swap_plugin(pane_name, plugin_name)
+
+            if success:
+                self.notify(
+                    f"Switched to {plugin_name}",
+                    title=f"Plugin changed in {pane_name}",
+                    timeout=2,
+                )
+            else:
+                self.notify(
+                    f"Cannot switch to {plugin_name} in {pane_name}",
+                    severity="warning",
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to swap plugin: {e}")
+            self.notify(f"Failed to swap plugin: {e}", severity="error")
+
+    async def on_plugin_swapped(self, message: PluginSwapped) -> None:
+        """Handle plugin swap by refreshing the pane with new plugin data.
+
+        Args:
+            message: The PluginSwapped message
+        """
+        pane_name = message.pane_name
+        new_plugin = message.new_plugin
+
+        logger.info(f"Plugin swapped in {pane_name}: {message.old_plugin} -> {new_plugin}")
+
+        # Stop the old refresh timer if it exists
+        if pane_name in self._refresh_timers:
+            self._refresh_timers[pane_name].stop()
+            del self._refresh_timers[pane_name]
+
+        # Start new refresh timer for the new plugin
+        interval = self.get_refresh_interval(new_plugin)
+        timer = self.set_interval(
+            interval,
+            self._create_refresh_callback(new_plugin),
+            name=f"refresh-{new_plugin}",
+        )
+        self._refresh_timers[new_plugin] = timer
+
+        # Trigger immediate refresh with new plugin
+        await self._refresh_pane(new_plugin)
+
+    async def on_layout_switch_requested(self, message: LayoutSwitchRequested) -> None:
+        """Handle layout switch request from GridLayout keybindings.
+
+        Args:
+            message: The LayoutSwitchRequested message
+        """
+        await self._switch_to_layout(message.layout_name)
 
 
 def run_app(config: Config | None = None, debug_mode: bool = False) -> None:

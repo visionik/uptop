@@ -40,6 +40,8 @@ class PanePosition:
         row_span: Number of rows the pane spans (default 1)
         col_span: Fraction of the row width (1.0 = full width, 0.5 = half)
         height_weight: Relative height weight for the row (default 1)
+        available_plugins: List of plugin names available in this slot (empty = only name plugin)
+        current_plugin: Currently active plugin in this slot (defaults to name)
     """
 
     name: str
@@ -48,6 +50,16 @@ class PanePosition:
     row_span: int = 1
     col_span: float = 0.5
     height_weight: int = 1
+    available_plugins: list[str] = field(default_factory=list)
+    current_plugin: str | None = None
+
+    def get_active_plugin(self) -> str:
+        """Get the currently active plugin name for this slot.
+
+        Returns:
+            The current plugin name (falls back to 'name' if not set)
+        """
+        return self.current_plugin if self.current_plugin else self.name
 
 
 @dataclass
@@ -252,6 +264,12 @@ class GridLayout(Container):
         Binding("3", "focus_pane_3", "Focus Pane 3", show=False),
         Binding("4", "focus_pane_4", "Focus Pane 4", show=False),
         Binding("5", "focus_pane_5", "Focus Pane 5", show=False),
+        Binding("alt+1", "switch_layout_1", "Layout 1", show=False),
+        Binding("alt+2", "switch_layout_2", "Layout 2", show=False),
+        Binding("alt+3", "switch_layout_3", "Layout 3", show=False),
+        Binding("alt+4", "switch_layout_4", "Layout 4", show=False),
+        Binding("alt+5", "switch_layout_5", "Layout 5", show=False),
+        Binding("alt+6", "switch_layout_6", "Layout 6", show=False),
     ]
 
     def __init__(
@@ -280,6 +298,7 @@ class GridLayout(Container):
         self._current_focus_index: int = 0
         self._hidden_panes: set[str] = set()
         self._pane_widgets: dict[str, PaneContainer] = {}
+        self._layout_presets: list[str] = []  # Will be set by app
 
     @property
     def layout_config(self) -> LayoutConfig:
@@ -577,6 +596,90 @@ class GridLayout(Container):
         self._pane_widgets.clear()
         self._current_focus_index = 0
         self.refresh(recompose=True)
+
+    def set_layout_presets(self, preset_names: list[str]) -> None:
+        """Set the list of available layout presets for keybinding switching.
+
+        Args:
+            preset_names: List of layout preset names (e.g., ["standard", "compact", ...])
+        """
+        self._layout_presets = preset_names
+
+    def swap_plugin(self, pane_name: str, new_plugin_name: str) -> bool:
+        """Swap the plugin in a specific pane slot.
+
+        Args:
+            pane_name: Name of the pane slot to change
+            new_plugin_name: Name of the new plugin to load
+
+        Returns:
+            True if swap was successful, False otherwise
+        """
+        # Find the pane position in the layout
+        for pane_pos in self._layout_config.panes:
+            if pane_pos.name == pane_name:
+                # Check if plugin is available in this slot
+                if pane_pos.available_plugins and new_plugin_name not in pane_pos.available_plugins:
+                    logger.warning(
+                        f"Plugin '{new_plugin_name}' not available in slot '{pane_name}'. "
+                        f"Available: {pane_pos.available_plugins}"
+                    )
+                    return False
+
+                # Update the current plugin
+                old_plugin = pane_pos.current_plugin or pane_pos.name
+                pane_pos.current_plugin = new_plugin_name
+
+                # Get the pane container and notify parent (app) to refresh it
+                pane_container = self._pane_widgets.get(pane_name)
+                if pane_container:
+                    # Post message to app to reload this pane with new plugin
+                    from uptop.tui.messages import PluginSwapped
+
+                    self.post_message(PluginSwapped(pane_name, old_plugin, new_plugin_name))
+                    return True
+
+        return False
+
+    def action_switch_layout_1(self) -> None:
+        """Switch to layout preset 1 (Alt+1)."""
+        self._switch_to_preset(0)
+
+    def action_switch_layout_2(self) -> None:
+        """Switch to layout preset 2 (Alt+2)."""
+        self._switch_to_preset(1)
+
+    def action_switch_layout_3(self) -> None:
+        """Switch to layout preset 3 (Alt+3)."""
+        self._switch_to_preset(2)
+
+    def action_switch_layout_4(self) -> None:
+        """Switch to layout preset 4 (Alt+4)."""
+        self._switch_to_preset(3)
+
+    def action_switch_layout_5(self) -> None:
+        """Switch to layout preset 5 (Alt+5)."""
+        self._switch_to_preset(4)
+
+    def action_switch_layout_6(self) -> None:
+        """Switch to layout preset 6 (Alt+6)."""
+        self._switch_to_preset(5)
+
+    def _switch_to_preset(self, index: int) -> None:
+        """Switch to a layout preset by index.
+
+        Args:
+            index: Index in the _layout_presets list
+        """
+        if not self._layout_presets or index >= len(self._layout_presets):
+            return
+
+        preset_name = self._layout_presets[index]
+
+        # Post message to app to switch layout
+        from uptop.tui.messages import LayoutSwitchRequested
+
+        self.post_message(LayoutSwitchRequested(preset_name))
 
     def get_visible_pane_widgets(self) -> Sequence[PaneContainer]:
         """Get all visible pane container widgets.

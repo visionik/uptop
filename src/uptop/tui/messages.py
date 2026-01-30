@@ -53,3 +53,49 @@ class PaneResized(Message):
         self.width = width
         self.height = height
         super().__init__()
+
+
+class PluginSwapped(Message):
+    """Posted when a plugin is swapped in a pane slot.
+
+    This message is posted by GridLayout when swap_plugin() is called,
+    allowing the app to reload the pane with the new plugin.
+
+    Attributes:
+        pane_name: Name of the pane slot
+        old_plugin: Previous plugin name
+        new_plugin: New plugin name
+    """
+
+    def __init__(self, pane_name: str, old_plugin: str, new_plugin: str) -> None:
+        """Initialize the message.
+
+        Args:
+            pane_name: Name of the pane slot
+            old_plugin: Previous plugin name
+            new_plugin: New plugin name
+        """
+        self.pane_name = pane_name
+        self.old_plugin = old_plugin
+        self.new_plugin = new_plugin
+        super().__init__()
+
+
+class LayoutSwitchRequested(Message):
+    """Posted when a layout switch is requested.
+
+    This message is posted by GridLayout when a layout preset keybinding
+    is pressed (Alt+1-6), allowing the app to switch the entire layout.
+
+    Attributes:
+        layout_name: Name of the requested layout preset
+    """
+
+    def __init__(self, layout_name: str) -> None:
+        """Initialize the message.
+
+        Args:
+            layout_name: Name of the requested layout preset
+        """
+        self.layout_name = layout_name
+        super().__init__()
