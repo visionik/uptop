@@ -145,7 +145,7 @@ class PingWidget(Widget):
         try:
             content = self.query_one("#ping-content", Static)
 
-            if self.data is None or not self.data.results:
+            if self.data is None or not self.data.hosts:
                 content.update("[dim]No ping data available[/dim]")
                 return
 
@@ -167,14 +167,14 @@ class PingWidget(Widget):
         Returns:
             Rich renderable for single line display
         """
-        if not self.data or not self.data.results:
+        if not self.data or not self.data.hosts:
             return Text("Ping: No data")
 
         # Count statuses
-        ok_count = sum(1 for r in self.data.results if r.status == "ok")
-        warning_count = sum(1 for r in self.data.results if r.status == "warning")
-        critical_count = sum(1 for r in self.data.results if r.status == "critical")
-        down_count = sum(1 for r in self.data.results if r.status == "unreachable")
+        ok_count = sum(1 for r in self.data.hosts if r.alert_level == "ok")
+        warning_count = sum(1 for r in self.data.hosts if r.alert_level == "warning")
+        critical_count = sum(1 for r in self.data.hosts if r.alert_level == "critical")
+        down_count = sum(1 for r in self.data.hosts if r.status in ["down", "dns_failed", "timeout", "unreachable"])
 
         parts = [Text("Ping: ", style="bold")]
 
@@ -207,14 +207,12 @@ class PingWidget(Widget):
         table.add_column("Latency", justify="right", no_wrap=True)
         table.add_column("Loss", justify="right", no_wrap=True)
 
-        for result in self.data.results:
-            status_text = Text(result.status.upper(), style=get_status_color(result.status))
-            latency_text = format_latency(result.metrics.latency_ms if result.metrics else None)
-            loss_text = (
-                f"{result.metrics.packet_loss_percent:.1f}%"
-                if result.metrics and result.metrics.packet_loss_percent is not None
-                else "N/A"
-            )
+        for result in self.data.hosts:
+            # Use alert_level for status display
+            status_color = get_status_color(result.alert_level)
+            status_text = Text(result.status.upper(), style=status_color)
+            latency_text = format_latency(result.current_latency_ms)
+            loss_text = f"{result.packet_loss_percent:.1f}%"
 
             table.add_row(
                 result.host,
@@ -239,25 +237,22 @@ class PingWidget(Widget):
         table.add_column("Loss", justify="right")
         table.add_column("History", no_wrap=True)
 
-        for result in self.data.results:
-            status_style = get_status_color(result.status)
+        for result in self.data.hosts:
+            status_style = get_status_color(result.alert_level)
             status_text = Text(result.status[:4].upper(), style=status_style)
 
-            if result.metrics:
-                latency = format_latency(result.metrics.latency_ms)
-                min_val = format_latency(result.metrics.min_latency_ms)
-                avg_val = format_latency(result.metrics.avg_latency_ms)
-                max_val = format_latency(result.metrics.max_latency_ms)
-                loss = f"{result.metrics.packet_loss_percent:.1f}%"
+            latency = format_latency(result.current_latency_ms)
+            min_val = format_latency(result.min_latency_ms)
+            avg_val = format_latency(result.avg_latency_ms)
+            max_val = format_latency(result.max_latency_ms)
+            loss = f"{result.packet_loss_percent:.1f}%"
 
-                # Generate sparkline from history
-                history_values = [h.latency_ms for h in result.history if h.latency_ms is not None]
+            # Generate sparkline from history
+            history_values = [h.latency_ms for h in result.history if h.latency_ms is not None]
+            if history_values:
                 sparkline_chars = self._generate_sparkline(history_values, width=20)
                 sparkline_text = Text(sparkline_chars, style=status_style)
             else:
-                latency = "N/A"
-                min_val = avg_val = max_val = "N/A"
-                loss = "N/A"
                 sparkline_text = Text("─" * 20, style="dim")
 
             table.add_row(
@@ -287,28 +282,24 @@ class PingWidget(Widget):
         table.add_column("Failures", justify="right")
         table.add_column("History", no_wrap=True)
 
-        for result in self.data.results:
-            status_style = get_status_color(result.status)
+        for result in self.data.hosts:
+            status_style = get_status_color(result.alert_level)
             status_text = Text(result.status.upper(), style=status_style)
 
-            if result.metrics:
-                current = format_latency(result.metrics.latency_ms)
-                min_val = format_latency(result.metrics.min_latency_ms)
-                avg_val = format_latency(result.metrics.avg_latency_ms)
-                max_val = format_latency(result.metrics.max_latency_ms)
-                jitter = format_latency(result.metrics.jitter_ms)
-                loss = f"{result.metrics.packet_loss_percent:.1f}%"
-                failures = str(result.consecutive_failures)
+            current = format_latency(result.current_latency_ms)
+            min_val = format_latency(result.min_latency_ms)
+            avg_val = format_latency(result.avg_latency_ms)
+            max_val = format_latency(result.max_latency_ms)
+            jitter = format_latency(result.jitter_ms)
+            loss = f"{result.packet_loss_percent:.1f}%"
+            failures = str(result.consecutive_failures)
 
-                # Generate sparkline
-                history_values = [h.latency_ms for h in result.history if h.latency_ms is not None]
+            # Generate sparkline
+            history_values = [h.latency_ms for h in result.history if h.latency_ms is not None]
+            if history_values:
                 sparkline_chars = self._generate_sparkline(history_values, width=25)
                 sparkline_text = Text(sparkline_chars, style=status_style)
             else:
-                current = "N/A"
-                min_val = avg_val = max_val = jitter = "N/A"
-                loss = "N/A"
-                failures = str(result.consecutive_failures)
                 sparkline_text = Text("─" * 25, style="dim")
 
             table.add_row(

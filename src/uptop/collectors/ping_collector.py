@@ -451,8 +451,17 @@ class PingCollector(DataCollector[PingData]):
                     hosts_down += 1
 
         return PingData(
+            source=self.name,
             hosts=hosts,
             total_hosts=len(self.config.hosts),
             hosts_up=hosts_up,
             hosts_down=hosts_down,
         )
+
+    def get_schema(self) -> type[PingData]:
+        """Return the Pydantic model class for this collector's data.
+
+        Returns:
+            The PingData class
+        """
+        return PingData
