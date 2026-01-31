@@ -1,6 +1,6 @@
 [project]
 name = "uptop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Universal Performance & Telemetry Output - CLI+TUI system monitor"
 authors = [{name = "Your Name", email = "you@example.com"}]
 readme = "README.md"
