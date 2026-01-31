@@ -279,8 +279,9 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
 
         # Add plugins from registry
         try:
-            pane_plugins = self._plugin_registry.get_plugins_by_type("pane")
-            for plugin_name, plugin in pane_plugins.items():
+            from uptop.models.base import PluginType
+            pane_plugins = self._plugin_registry.get_plugins_by_type(PluginType.PANE)
+            for plugin in pane_plugins:
                 metadata = plugin.get_metadata()
                 items.append(
                     CommandItem(
@@ -288,8 +289,8 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
                         description=metadata.description or "",
                         badge="PLUGIN",
                         action_type="plugin",
-                        target=plugin_name,
-                        id=f"cmd-plugin-{plugin_name}",
+                        target=metadata.name,
+                        id=f"cmd-plugin-{metadata.name}",
                     )
                 )
         except Exception:
