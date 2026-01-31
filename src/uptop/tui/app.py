@@ -238,7 +238,7 @@ class UptopApp(App[None]):
         Binding("k", "kill_process", "Kill"),
         Binding("m", "cycle_display_mode", "Mode"),
         Binding("l", "cycle_layout", "Layout"),
-        Binding("ctrl+p", "open_command_palette", "Command Palette", show=True),
+        Binding("ctrl+n", "open_command_palette", "Switch Plugin", show=True),
     ]
 
     def __init__(

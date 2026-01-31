@@ -280,9 +280,15 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
         # Add plugins from registry
         try:
             from uptop.models.base import PluginType
+            import logging
+            logger = logging.getLogger(__name__)
+            
             pane_plugins = self._plugin_registry.get_plugins_by_type(PluginType.PANE)
+            logger.info(f"Found {len(pane_plugins)} pane plugins")
+            
             for plugin in pane_plugins:
                 metadata = plugin.get_metadata()
+                logger.info(f"Adding plugin to palette: {metadata.name} - {metadata.display_name}")
                 items.append(
                     CommandItem(
                         name=metadata.display_name,
@@ -293,8 +299,11 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
                         id=f"cmd-plugin-{metadata.name}",
                     )
                 )
-        except Exception:
+        except Exception as e:
             # Registry might not have plugins yet, skip
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to load plugins into command palette: {e}", exc_info=True)
             pass
 
         self._all_items = items
