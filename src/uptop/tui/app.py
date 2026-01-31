@@ -463,7 +463,7 @@ class UptopApp(App[None]):
         Includes optional performance profiling when debug_mode is enabled.
 
         Args:
-            pane_name: Name of the pane to refresh
+            pane_name: Name of the pane slot to refresh (e.g., "disk", "cpu")
         """
         if not self._plugin_registry:
             return
@@ -471,10 +471,23 @@ class UptopApp(App[None]):
         # Import here to avoid circular imports
         from uptop.tui.widgets.pane_container import PaneContainer
 
+        # Check if this pane slot has a swapped plugin
+        # by looking at the GridLayout's current plugin for this slot
+        plugin_name = pane_name  # Default: plugin name matches pane slot name
         try:
-            plugin = self._plugin_registry.get_pane(pane_name)
+            grid = self.query_one(GridLayout)
+            # Check if there's a different plugin active in this slot
+            for pane_pos in grid.layout_config.panes:
+                if pane_pos.name == pane_name and pane_pos.current_plugin:
+                    plugin_name = pane_pos.current_plugin
+                    break
+        except Exception:
+            pass  # If we can't get the grid, just use the pane name
+
+        try:
+            plugin = self._plugin_registry.get_pane(plugin_name)
         except Exception as e:
-            logger.error(f"Failed to get pane plugin {pane_name}: {e}")
+            logger.error(f"Failed to get pane plugin {plugin_name} for slot {pane_name}: {e}")
             return
 
         # Try to find the pane container
@@ -938,27 +951,28 @@ class UptopApp(App[None]):
         Args:
             message: The PluginSwapped message
         """
-        pane_name = message.pane_name
-        new_plugin = message.new_plugin
+        pane_name = message.pane_name  # This is the pane slot name (e.g., "disk")
+        new_plugin = message.new_plugin  # This is the plugin name (e.g., "ping")
 
         logger.info(f"Plugin swapped in {pane_name}: {message.old_plugin} -> {new_plugin}")
 
-        # Stop the old refresh timer if it exists
+        # Stop the old refresh timer if it exists (stored by pane slot name)
         if pane_name in self._refresh_timers:
             self._refresh_timers[pane_name].stop()
             del self._refresh_timers[pane_name]
 
-        # Start new refresh timer for the new plugin
+        # Start new refresh timer for the pane slot (not the plugin)
+        # The pane slot will render whichever plugin is currently active in it
         interval = self.get_refresh_interval(new_plugin)
         timer = self.set_interval(
             interval,
-            self._create_refresh_callback(new_plugin),
-            name=f"refresh-{new_plugin}",
+            self._create_refresh_callback(pane_name),  # Use pane slot name
+            name=f"refresh-{pane_name}-{new_plugin}",
         )
-        self._refresh_timers[new_plugin] = timer
+        self._refresh_timers[pane_name] = timer  # Store by pane slot name
 
-        # Trigger immediate refresh with new plugin
-        await self._refresh_pane(new_plugin)
+        # Trigger immediate refresh of the pane slot
+        await self._refresh_pane(pane_name)
 
     async def on_layout_switch_requested(self, message: LayoutSwitchRequested) -> None:
         """Handle layout switch request from GridLayout keybindings.
