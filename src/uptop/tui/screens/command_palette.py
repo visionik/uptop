@@ -280,15 +280,11 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
         # Add plugins from registry
         try:
             from uptop.models.base import PluginType
-            import logging
-            logger = logging.getLogger(__name__)
             
             pane_plugins = self._plugin_registry.get_plugins_by_type(PluginType.PANE)
-            logger.info(f"Found {len(pane_plugins)} pane plugins")
             
             for plugin in pane_plugins:
                 metadata = plugin.get_metadata()
-                logger.info(f"Adding plugin to palette: {metadata.name} - {metadata.display_name}")
                 items.append(
                     CommandItem(
                         name=metadata.display_name,
@@ -299,11 +295,8 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
                         id=f"cmd-plugin-{metadata.name}",
                     )
                 )
-        except Exception as e:
+        except Exception:
             # Registry might not have plugins yet, skip
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to load plugins into command palette: {e}", exc_info=True)
             pass
 
         self._all_items = items
@@ -318,26 +311,21 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
         results_list = self.query_one("#results-list", ListView)
         results_list.clear()
 
-        # Simple fuzzy matching - case insensitive, all query chars must appear in order
+        # Simple substring matching - case insensitive
         query_lower = query.lower()
 
         if not query_lower:
             # Show all items when query is empty
             self._filtered_items = self._all_items.copy()
         else:
-            # Filter by fuzzy match
+            # Filter by substring match in name or description
             filtered = []
             for item in self._all_items:
                 # Match against name and description
                 search_text = f"{item._name} {item._description}".lower()
 
-                # Check if all characters in query appear in order
-                query_idx = 0
-                for char in search_text:
-                    if query_idx < len(query_lower) and char == query_lower[query_idx]:
-                        query_idx += 1
-
-                if query_idx == len(query_lower):
+                # Check if query is a substring
+                if query_lower in search_text:
                     filtered.append(item)
 
             self._filtered_items = filtered
