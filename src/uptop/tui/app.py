@@ -951,10 +951,21 @@ class UptopApp(App[None]):
         Args:
             message: The PluginSwapped message
         """
+        from uptop.tui.widgets.pane_container import PaneContainer
+
         pane_name = message.pane_name  # This is the pane slot name (e.g., "disk")
         new_plugin = message.new_plugin  # This is the plugin name (e.g., "ping")
 
         logger.info(f"Plugin swapped in {pane_name}: {message.old_plugin} -> {new_plugin}")
+
+        # Update the pane container title to match the new plugin
+        try:
+            container = self.query_one(f"#pane-{pane_name}", PaneContainer)
+            plugin = self._plugin_registry.get_pane(new_plugin)
+            # Use the plugin's display name for the title
+            container.title = plugin.display_name
+        except Exception as e:
+            logger.warning(f"Failed to update pane title: {e}")
 
         # Stop the old refresh timer if it exists (stored by pane slot name)
         if pane_name in self._refresh_timers:
