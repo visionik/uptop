@@ -366,6 +366,14 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
             event: Input changed event
         """
         self._update_results(event.value)
+    
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key on search input - select the highlighted item.
+
+        Args:
+            event: Input submitted event
+        """
+        self.action_select_item()
 
     def action_cursor_up(self) -> None:
         """Move selection up in the list."""
