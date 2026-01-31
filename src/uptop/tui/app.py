@@ -827,6 +827,7 @@ class UptopApp(App[None]):
             logger.error(f"Failed to switch layout: {e}")
             self.notify(f"Failed to switch layout: {e}", severity="error")
 
+    @work
     async def action_open_command_palette(self) -> None:
         """Open the command palette for switching plugins and layouts.
 
