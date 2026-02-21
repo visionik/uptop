@@ -397,13 +397,13 @@ Your PR must:
 
 ## Plugin Development
 
-If you're developing a plugin, see the [Plugin Development Guide](https://uptop.readthedocs.io/plugins/overview/) for detailed instructions.
+If you're developing a plugin, see the [Plugin Development Guide](../plugins/overview.md) for detailed instructions.
 
 ### Plugin Contribution Options
 
 1. **Internal plugin**: Add to `src/uptop/plugins/` (requires PR to main repo)
 2. **External plugin**: Create separate package `uptop-plugin-yourname`
-3. **Plugin gallery**: Submit to [Plugin Gallery](https://uptop.readthedocs.io/community/plugin-gallery/)
+3. **Plugin gallery**: Submit to [Plugin Gallery](plugin-gallery.md)
 
 ### Plugin Quality Standards
 
