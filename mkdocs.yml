@@ -96,10 +96,13 @@ nav:
       - Configuration Schema: reference/config-schema.md
       - Keyboard Shortcuts: reference/keyboard-shortcuts.md
       - Prometheus Metrics: reference/prometheus-metrics.md
+      - Sentry Log Levels: reference/sentry-log-levels.md
+      - Sentry Troubleshooting: reference/sentry-troubleshooting.md
   - Community:
       - Contributing: community/contributing.md
       - Plugin Gallery: community/plugin-gallery.md
       - Changelog: community/changelog.md
+  - Specification: specification.md
 
 extra:
   social:
