@@ -28,7 +28,7 @@ pip install uptop[all]
 ## Install from Source
 
 ```bash
-git clone https://github.com/yourusername/uptop.git
+git clone https://github.com/jsgoecke/uptop.git
 cd uptop
 pip install -e .
 ```
@@ -46,7 +46,7 @@ For contributing or developing plugins, install with development dependencies:
 ### Steps
 
 ```bash
-git clone https://github.com/yourusername/uptop.git
+git clone https://github.com/jsgoecke/uptop.git
 cd uptop
 
 # Create and activate a virtual environment

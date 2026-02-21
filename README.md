@@ -16,10 +16,26 @@ A modern CLI+TUI system monitoring tool written in Python that provides btop-lik
 
 ## Quick Start
 
-### Install
+### Install from PyPI
 
 ```bash
 pip install uptop
+```
+
+### Install from Source
+
+```bash
+git clone https://github.com/jsgoecke/uptop.git
+cd uptop
+pip install .
+```
+
+### Optional Extras
+
+```bash
+pip install uptop[gpu]    # NVIDIA/AMD GPU monitoring
+pip install uptop[query]  # JMESPath query filtering
+pip install uptop[all]    # All optional dependencies
 ```
 
 ### Run
