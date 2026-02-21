@@ -26,11 +26,16 @@ from uptop.tui.panes.disk_widget import (
     format_iops,
 )
 from uptop.tui.panes.disk_widget import get_usage_color as get_disk_usage_color
-from uptop.tui.panes.gpu_widget import (
-    GPUProgressBar,
-    GPUWidget,
-)
-from uptop.tui.panes.gpu_widget import get_usage_color as get_gpu_usage_color
+try:
+    from uptop.tui.panes.gpu_widget import (
+        GPUProgressBar,
+        GPUWidget,
+    )
+    from uptop.tui.panes.gpu_widget import get_usage_color as get_gpu_usage_color
+except ImportError:
+    GPUWidget = None  # type: ignore[assignment,misc]
+    GPUProgressBar = None  # type: ignore[assignment,misc]
+    get_gpu_usage_color = None  # type: ignore[assignment]
 from uptop.tui.panes.memory_widget import MemoryWidget
 from uptop.tui.panes.memory_widget import format_bytes as format_memory_bytes
 from uptop.tui.panes.network_widget import NetworkWidget
@@ -48,6 +53,7 @@ from uptop.tui.panes.process_widget import (
     format_runtime,
 )
 from uptop.tui.panes.site_monitor_widget import SiteMonitorWidget
+from uptop.tui.panes.otel_widget import OTelWidget
 
 __all__ = [
     # CPU Widget
@@ -85,4 +91,6 @@ __all__ = [
     "get_pid_column_width",
     # Site Monitor Widget
     "SiteMonitorWidget",
+    # OpenTelemetry Widget
+    "OTelWidget",
 ]
