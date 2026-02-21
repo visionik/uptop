@@ -65,6 +65,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
                 "enabled": True,
                 "refresh_interval": 3.0,
             },
+            "otel": {
+                "enabled": True,
+                "refresh_interval": 2.0,
+                "host": "127.0.0.1",
+                "port": 4318,
+            },
         },
         # Layout presets for quick switching
         "layouts": {

@@ -105,8 +105,9 @@ DEFAULT_LAYOUT_CONFIG = LayoutConfig(
         PanePosition(name="processes", row=1, col=0, col_span=1.0, height_weight=2),
         PanePosition(name="network", row=2, col=0, col_span=0.5, height_weight=1),
         PanePosition(name="disk", row=2, col=1, col_span=0.5, height_weight=1),
+        PanePosition(name="otel", row=3, col=0, col_span=1.0, height_weight=1),
     ],
-    row_heights=[1, 2, 1],  # Processes row is twice as tall
+    row_heights=[1, 2, 1, 1],  # Processes row is twice as tall
 )
 
 
@@ -358,6 +359,7 @@ class GridLayout(Container):
             "network": "Network",
             "disk": "Disk",
             "gpu": "GPU",
+            "otel": "OpenTelemetry",
         }
         display_title = title_map.get(pane_pos.name, pane_pos.name.replace("_", " ").title())
 

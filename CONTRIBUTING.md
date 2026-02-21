@@ -192,6 +192,8 @@ The scope specifies what part of the codebase is affected:
 - `disk`: Disk pane
 - `gpu`: GPU pane
 - `sensors`: Sensors pane
+- `otel`: OpenTelemetry pane
+- `site_monitor`: Site Monitor pane
 - `config`: Configuration system
 - `docs`: Documentation
 
@@ -274,6 +276,7 @@ Use pytest with these tools:
 - **pytest-cov**: Coverage reporting
 - **pytest-mock**: Mocking support
 - **pytest-asyncio**: Async test support
+- **pytest-aiohttp**: aiohttp test client for HTTP receiver tests
 - **pytest-snapshot**: Snapshot testing for formatters
 
 Example unit test:

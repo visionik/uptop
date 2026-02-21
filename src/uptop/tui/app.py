@@ -788,6 +788,8 @@ def run_app(config: Config | None = None, debug_mode: bool = False) -> None:
     registry.register(ProcessPane())
     registry.register(NetworkPane())
     registry.register(DiskPane())
+    from uptop.plugins.otel import OTelPane
+    registry.register(OTelPane())
     # registry.register(GPUPane())  # Temporarily disabled
 
     # Discover any external plugins

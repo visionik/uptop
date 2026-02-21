@@ -3,10 +3,10 @@
 ## Summary
 **uptop**: Python CLI+TUI system monitor with btop-like functionality, plugin architecture, multiple output formats.
 
-**Differentiators**: Dual Mode (TUI/CLI) | Plugin Architecture | JSON/Markdown/Prometheus output | Python 3.11+, Textual, Pydantic, psutil
+**Differentiators**: Dual Mode (TUI/CLI) | Plugin Architecture | JSON/Markdown/Prometheus output | OpenTelemetry OTLP receiver | Python 3.11+, Textual, Pydantic, psutil
 
 ## MVP Scope
-**Includes**: Plugin system, Core panes (CPU/Memory/Processes/Network/Disk), TUI with keyboard nav, CLI JSON output, YAML config, process kill
+**Includes**: Plugin system, Core panes (CPU/Memory/Processes/Network/Disk/OpenTelemetry), TUI with keyboard nav, CLI JSON output, YAML config, process kill, OTLP HTTP receiver
 **Excludes**: GPU/Sensors panes, advanced process features, Markdown/Prometheus formatters, query syntax, streaming modes, custom themes, example plugins, --ai-help
 
 **Success**: TUI shows real-time data, can kill process, `uptop --json --once` works, plugin system functional, ≥75% coverage
@@ -18,8 +18,9 @@
 | TUI | textual[dev] ≥0.40 |
 | CLI | typer[all] ≥0.9 |
 | Data | psutil, Pydantic v2 |
+| OTLP | aiohttp ≥3.9 (HTTP receiver) |
 | Config | PyYAML |
-| Testing | pytest + cov + mock + snapshot + asyncio |
+| Testing | pytest + cov + mock + snapshot + asyncio + aiohttp |
 | Quality | ruff, black, isort, mypy |
 | Tasks | Taskfile |
 
@@ -34,9 +35,9 @@ Plugin Layer: Discovery → Registry → Lifecycle
                     ↓
 Plugin API:   PanePlugin | CollectorPlugin | FormatterPlugin | ActionPlugin
                     ↓
-Internal:     CPU | Memory | Process | Network | Disk | [GPU] | [Sensors]
+Internal:     CPU | Memory | Process | Network | Disk | OTel | [GPU] | [Sensors]
                     ↓
-Collection:   psutil + vendor libs
+Collection:   psutil + aiohttp (OTLP) + vendor libs
 ```
 
 **Data Flow**: Collector → Pydantic Model → Buffer → (TUI Widget | Formatter → stdout)
@@ -111,6 +112,15 @@ Collection:   psutil + vendor libs
 - Display: usage bars + I/O graphs from history buffer
 - Post-MVP: per-process I/O where supported/available
 - Source: `psutil.disk_usage()`, `disk_io_counters()`
+
+### OpenTelemetry
+- Metrics: session count, token usage (input/output/cache), cost (USD), lines of code, commits, PRs, active duration
+- Events: tool results, API requests, user prompts, session lifecycle (ring buffer, max 500)
+- Receiver: OTLP HTTP server on `127.0.0.1:4318` (aiohttp), accepts `/v1/metrics` and `/v1/logs`
+- Architecture: Push-to-pull bridge — Claude Code pushes OTLP → aiohttp stores in OTelStore → collector pulls on refresh → widget renders
+- Display: 4 modes (micro/minimized/medium/maximized), cost color-coded (green < $1, yellow < $5, red >= $5)
+- Source: OTLP JSON over HTTP from Claude Code (or any OTLP-compatible tool)
+- Config: `host`, `port`, `refresh_interval` (default: 2.0s)
 
 ### GPU (post-MVP)
 - NVIDIA (pynvml): utilization, memory, temp, power, fan; per-process GPU memory
@@ -506,11 +516,11 @@ Repository, pyproject.toml, Taskfile, CI/CD, docs structure, code quality tools.
 
 ## Dependencies
 
-**Core**: psutil≥5.9, textual[dev]≥0.40, typer[all]≥0.9, pydantic≥2.0, PyYAML≥6.0
+**Core**: psutil≥5.9, textual[dev]≥0.40, typer[all]≥0.9, pydantic≥2.0, PyYAML≥6.0, aiohttp≥3.9
 
-**Optional**: pynvml, pyamdgpuinfo (GPU), jmespath (query), docker (Docker plugin), requests (Weather plugin)
+**Optional**: pynvml, pyamdgpuinfo (GPU), jmespath (query), opentelemetry-proto≥1.20 (OTel proto defs), docker (Docker plugin), requests (Weather plugin)
 
-**Dev**: pytest, pytest-cov, pytest-mock, pytest-asyncio, pytest-snapshot, black, isort, ruff, mypy
+**Dev**: pytest, pytest-cov, pytest-mock, pytest-asyncio, pytest-aiohttp, pytest-snapshot, black, isort, ruff, mypy
 
 **System** (conditional):
 - Linux: `/proc` for richer process/network info; optional tools `nvidia-smi`, `rocm-smi`, `intel_gpu_top`.
