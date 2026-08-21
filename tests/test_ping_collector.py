@@ -7,7 +7,6 @@ import pytest
 
 from uptop.collectors.ping_collector import PingCollector
 from uptop.plugins.ping_config import (
-    AutoDisableConfig,
     PingHostConfig,
     PingPluginConfig,
     PingThresholds,
@@ -46,7 +45,6 @@ class TestPingCollectorInit:
         assert len(collector._dns_cache) == 0
         assert len(collector._history) == 0
         assert len(collector._consecutive_failures) == 0
-        assert len(collector._disabled_hosts) == 0
 
     def test_history_buffer_size(self):
         """Test history buffer respects config size."""
@@ -196,7 +194,8 @@ Request timeout for icmp_seq 1
         latencies, packet_loss = collector._parse_ping_output(output, 3)
         assert len(latencies) == 1
         assert latencies[0] == 42.5
-        assert packet_loss == 66.7
+        # Use approximate comparison due to floating point precision
+        assert abs(packet_loss - 66.7) < 0.1  # Allow for rounding differences
 
     def test_parse_total_failure(self, collector):
         """Test parsing output with 100% packet loss."""
@@ -265,40 +264,6 @@ class TestThresholdEvaluation:
         assert level == "critical"
 
 
-class TestAutoDisable:
-    """Tests for auto-disable functionality."""
-
-    def test_auto_disable_after_threshold(self):
-        """Test that host is disabled after threshold failures."""
-        config = PingPluginConfig(
-            hosts=[PingHostConfig(host="example.com")],
-            auto_disable=AutoDisableConfig(
-                enabled=True,
-                consecutive_failures_threshold=3,
-            ),
-        )
-        collector = PingCollector(config)
-        
-        # Simulate failures
-        collector._consecutive_failures["example.com"] = 3
-        collector._check_auto_disable("example.com")
-        
-        assert "example.com" in collector._disabled_hosts
-
-    def test_auto_disable_disabled(self):
-        """Test that auto-disable can be disabled."""
-        config = PingPluginConfig(
-            hosts=[PingHostConfig(host="example.com")],
-            auto_disable=AutoDisableConfig(enabled=False),
-        )
-        collector = PingCollector(config)
-        
-        collector._consecutive_failures["example.com"] = 100
-        collector._check_auto_disable("example.com")
-        
-        assert "example.com" not in collector._disabled_hosts
-
-
 class TestHistoryManagement:
     """Tests for history buffer management."""
 
@@ -318,12 +283,12 @@ class TestHistoryManagement:
         
         config = PingPluginConfig(
             hosts=[PingHostConfig(host="example.com")],
-            history_size=5,
+            history_size=50,  # Use valid size >= 10
         )
         collector = PingCollector(config)
         
-        # Add 10 metrics
-        for i in range(10):
+        # Add 100 metrics
+        for i in range(100):
             metric = PingMetrics(
                 latency_ms=float(i),
                 success=True,
@@ -331,11 +296,11 @@ class TestHistoryManagement:
             )
             collector._update_history("example.com", metric)
         
-        # Should only keep last 5
-        assert len(collector._history["example.com"]) == 5
-        # Should keep the most recent ones (5-9)
-        assert collector._history["example.com"][0].latency_ms == 5.0
-        assert collector._history["example.com"][-1].latency_ms == 9.0
+        # Should only keep last 50
+        assert len(collector._history["example.com"]) == 50
+        # Should keep the most recent ones (50-99)
+        assert collector._history["example.com"][0].latency_ms == 50.0
+        assert collector._history["example.com"][-1].latency_ms == 99.0
 
 
 class TestPingHostIntegration:

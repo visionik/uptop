@@ -3,7 +3,6 @@
 This module defines Pydantic models for ping plugin configuration including:
 - PingThresholds: Alert threshold configuration
 - RetryDNSConfig: DNS retry policy configuration
-- AutoDisableConfig: Auto-disable configuration
 - PingHostConfig: Per-host configuration
 - PingPluginConfig: Top-level plugin configuration
 """
@@ -91,20 +90,6 @@ class RetryDNSConfig(BaseModel):
         return v
 
 
-class AutoDisableConfig(BaseModel):
-    """Auto-disable configuration for failing hosts.
-
-    Attributes:
-        enabled: Whether to auto-disable hosts after consecutive failures
-        consecutive_failures_threshold: Number of failures before disabling
-    """
-
-    enabled: bool = Field(default=True, description="Enable auto-disable")
-    consecutive_failures_threshold: int = Field(
-        default=10, ge=1, description="Failures before auto-disable"
-    )
-
-
 class PingHostConfig(BaseModel):
     """Per-host ping configuration.
 
@@ -139,7 +124,6 @@ class PingPluginConfig(BaseModel):
         history_size: Maximum history buffer size per host
         default_thresholds: Default alert thresholds
         retry_dns: DNS retry configuration
-        auto_disable: Auto-disable configuration
         hosts: List of hosts to monitor
     """
 
@@ -164,9 +148,6 @@ class PingPluginConfig(BaseModel):
     )
     retry_dns: RetryDNSConfig = Field(
         default_factory=RetryDNSConfig, description="DNS retry configuration"
-    )
-    auto_disable: AutoDisableConfig = Field(
-        default_factory=AutoDisableConfig, description="Auto-disable configuration"
     )
     hosts: list[PingHostConfig] = Field(
         default_factory=list, description="List of hosts to monitor"

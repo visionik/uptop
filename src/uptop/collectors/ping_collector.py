@@ -58,7 +58,6 @@ class PingCollector(DataCollector[PingData]):
             lambda: deque(maxlen=config.history_size)
         )
         self._consecutive_failures: dict[str, int] = defaultdict(int)
-        self._disabled_hosts: set[str] = set()
         self._os_type = platform.system().lower()
 
     def _get_ping_command(
@@ -286,20 +285,10 @@ class PingCollector(DataCollector[PingData]):
         host = host_config.host
         timestamp = time.time()
 
-        # Check if host is disabled
-        if host in self._disabled_hosts:
-            return HostPingResult(
-                host=host,
-                status="disabled",
-                last_updated=timestamp,
-                consecutive_failures=self._consecutive_failures[host],
-            )
-
         # Resolve hostname
         ip_address = await self._resolve_hostname(host, host_config)
         if ip_address is None:
             self._consecutive_failures[host] += 1
-            self._check_auto_disable(host)
             return HostPingResult(
                 host=host,
                 ip_address=None,
@@ -364,9 +353,6 @@ class PingCollector(DataCollector[PingData]):
         thresholds = host_config.thresholds or self.config.default_thresholds
         alert_level = self._evaluate_thresholds(current_latency, packet_loss, thresholds)
 
-        # Check auto-disable
-        self._check_auto_disable(host)
-
         return HostPingResult(
             host=host,
             ip_address=ip_address,
@@ -382,23 +368,6 @@ class PingCollector(DataCollector[PingData]):
             history=list(self._history[host]),
             last_updated=timestamp,
         )
-
-    def _check_auto_disable(self, host: str) -> None:
-        """Check if host should be auto-disabled.
-
-        Args:
-            host: Hostname to check
-        """
-        auto_disable = self.config.auto_disable
-        if not auto_disable.enabled:
-            return
-
-        threshold = auto_disable.consecutive_failures_threshold
-        if self._consecutive_failures[host] >= threshold:
-            self._disabled_hosts.add(host)
-            logger.warning(
-                f"Auto-disabled host {host} after {threshold} consecutive failures"
-            )
 
     async def collect(self) -> PingData:
         """Collect ping metrics for all configured hosts.

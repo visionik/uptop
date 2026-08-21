@@ -140,10 +140,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "max_attempts": 3,
             "backoff_seconds": [1.0, 2.0, 4.0],
         },
-        "auto_disable": {
-            "enabled": True,
-            "consecutive_failures_threshold": 10,
-        },
         "hosts": [],
     },
 }

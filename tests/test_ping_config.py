@@ -4,7 +4,6 @@ import pytest
 from pydantic import ValidationError
 
 from uptop.plugins.ping_config import (
-    AutoDisableConfig,
     PingHostConfig,
     PingPluginConfig,
     PingThresholds,
@@ -119,30 +118,6 @@ class TestRetryDNSConfig:
         with pytest.raises(ValidationError) as exc_info:
             RetryDNSConfig(backoff_seconds=[1.0, -2.0, 4.0])
         assert "non-negative" in str(exc_info.value)
-
-
-class TestAutoDisableConfig:
-    """Tests for AutoDisableConfig model."""
-
-    def test_default_auto_disable(self):
-        """Test default auto-disable configuration."""
-        config = AutoDisableConfig()
-        assert config.enabled is True
-        assert config.consecutive_failures_threshold == 10
-
-    def test_custom_auto_disable(self):
-        """Test custom auto-disable configuration."""
-        config = AutoDisableConfig(
-            enabled=False,
-            consecutive_failures_threshold=5,
-        )
-        assert config.enabled is False
-        assert config.consecutive_failures_threshold == 5
-
-    def test_threshold_must_be_positive(self):
-        """Test that threshold must be >= 1."""
-        with pytest.raises(ValidationError):
-            AutoDisableConfig(consecutive_failures_threshold=0)
 
 
 class TestPingHostConfig:
