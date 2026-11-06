@@ -47,6 +47,7 @@ from uptop.tui.panes.process_widget import (
     format_command,
     format_runtime,
 )
+from uptop.tui.panes.site_monitor_widget import SiteMonitorWidget
 
 __all__ = [
     # CPU Widget
@@ -82,4 +83,6 @@ __all__ = [
     "format_runtime",
     "get_max_pid",
     "get_pid_column_width",
+    # Site Monitor Widget
+    "SiteMonitorWidget",
 ]
