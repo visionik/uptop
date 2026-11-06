@@ -324,9 +324,7 @@ class ProcessWidget(Widget):
             self.pid = pid
             self.process = process
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     ProcessWidget {
         width: 100%;
         height: 100%;

@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+import json
 
 # UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
 try:
@@ -28,7 +29,7 @@ from typing import Any
 from rich.console import Console
 
 from uptop.config import Config
-from uptop.formatters import JsonFormatter, PrometheusFormatter
+from uptop.formatters import JsonFormatter, MarkdownFormatter, PrometheusFormatter
 from uptop.models.base import MetricData
 from uptop.plugin_api.base import FormatterPlugin, PanePlugin
 
@@ -55,6 +56,7 @@ def _load_builtin_panes() -> None:
     from uptop.plugins.disk import DiskPane
     from uptop.plugins.memory import MemoryPane
     from uptop.plugins.network import NetworkPane
+    from uptop.plugins.ping import PingPane
     from uptop.plugins.processes import ProcessPane
 
     BUILTIN_PANES = {
@@ -63,6 +65,7 @@ def _load_builtin_panes() -> None:
         "disk": DiskPane,
         "network": NetworkPane,
         "processes": ProcessPane,
+        "ping": PingPane,
     }
 
 
@@ -85,11 +88,15 @@ def get_formatter(format_name: str, config: Config) -> FormatterPlugin:
         formatter = JsonFormatter(pretty_print=pretty_print)
         formatter.initialize({"pretty_print": pretty_print})
         return formatter
+    if format_name == "markdown":
+        formatter = MarkdownFormatter()
+        formatter.initialize()
+        return formatter
     if format_name == "prometheus":
         formatter = PrometheusFormatter()
         formatter.initialize()
         return formatter
-    raise ValueError(f"Unknown format: {format_name}. Available: json, prometheus")
+    raise ValueError(f"Unknown format: {format_name}. Available: json, markdown, prometheus")
 
 
 def get_available_panes() -> list[str]:
@@ -153,14 +160,15 @@ async def collect_pane_data(pane: PanePlugin, pane_name: str) -> tuple[str, Metr
 
     try:
         # Start a transaction for this collection
-        with sentry_sdk.start_transaction(
-            name=f"cli_collect:{pane_name}",
-            op="plugin.collect",
-        ) as txn:
-            # Create a span to track the actual work
-            with sentry_sdk.start_span(name=pane_name) as span:
-                data = await pane.collect_data()
-                span.set_data("pane", pane_name)
+        with (
+            sentry_sdk.start_transaction(
+                name=f"cli_collect:{pane_name}",
+                op="plugin.collect",
+            ),
+            sentry_sdk.start_span(name=pane_name) as span,
+        ):
+            data = await pane.collect_data()
+            span.set_data("pane", pane_name)
         return pane_name, data
     except Exception as e:
         log_error(f"CLI plugin collect failed: {pane_name}", plugin=pane_name, error=str(e))
@@ -238,10 +246,26 @@ def build_snapshot(pane_data: dict[str, MetricData]) -> dict[str, Any]:
     }
 
 
+def apply_query(snapshot: dict[str, Any], query: str) -> Any:
+    """Apply a JMESPath expression to a JSON-compatible snapshot."""
+    try:
+        import jmespath
+    except ImportError as error:
+        raise ValueError("JMESPath filtering requires the 'uptop[query]' extra") from error
+
+    payload = {
+        "timestamp": snapshot["timestamp"].isoformat(),
+        "hostname": snapshot["hostname"],
+        "panes": {name: data.model_dump(mode="json") for name, data in snapshot["panes"].items()},
+    }
+    return jmespath.search(query, payload)
+
+
 async def run_cli_once(
     format_name: str,
     pane_names: list[str] | None,
     config: Config,
+    query: str | None = None,
 ) -> int:
     """Run a single CLI collection cycle.
 
@@ -283,12 +307,20 @@ async def run_cli_once(
         console.print("[yellow]Warning: No data collected from any pane[/yellow]")
         return 1
 
-    # Build snapshot and format output
     snapshot = build_snapshot(pane_data)
-    output = formatter.format(snapshot)
+    if query:
+        if format_name != "json":
+            console.print("[red]Error: --query is only supported with JSON output[/red]")
+            return 1
+        try:
+            result = apply_query(snapshot, query)
+        except ValueError as error:
+            console.print(f"[red]Error: {error}[/red]")
+            return 1
+        print(json.dumps(result, indent=2 if config.cli.pretty_print else None))
+        return 0
 
-    # Print to stdout
-    print(output)
+    print(formatter.format(snapshot))
 
     return 0
 
@@ -298,6 +330,7 @@ async def run_cli_continuous(
     pane_names: list[str] | None,
     config: Config,
     stream: bool = False,
+    query: str | None = None,
 ) -> int:
     """Run CLI in continuous/streaming mode.
 
@@ -361,9 +394,24 @@ async def run_cli_continuous(
                 continue
 
             if pane_data:
-                # Build snapshot and format output
                 snapshot = build_snapshot(pane_data)
-                output = formatter.format(snapshot)
+                if query:
+                    if format_name != "json":
+                        console.print(
+                            "[red]Error: --query is only supported with JSON output[/red]"
+                        )
+                        return 1
+                    try:
+                        result = apply_query(snapshot, query)
+                    except ValueError as error:
+                        console.print(f"[red]Error: {error}[/red]")
+                        return 1
+                    output = json.dumps(
+                        result,
+                        indent=None if stream else (2 if config.cli.pretty_print else None),
+                    )
+                else:
+                    output = formatter.format(snapshot)
 
                 if stream:
                     # Streaming mode: just print each line (NDJSON for JSON format)
@@ -394,6 +442,7 @@ def run_cli_mode(
     once: bool = True,
     stream: bool = False,
     config: Config | None = None,
+    query: str | None = None,
 ) -> int:
     """Run uptop in CLI mode.
 
@@ -416,10 +465,12 @@ def run_cli_mode(
         config = load_config()
 
     if once:
-        return asyncio.run(run_cli_once(format_name, pane_names, config))
+        return asyncio.run(run_cli_once(format_name, pane_names, config, query=query))
     # Continuous or streaming mode
     try:
-        return asyncio.run(run_cli_continuous(format_name, pane_names, config, stream=stream))
+        return asyncio.run(
+            run_cli_continuous(format_name, pane_names, config, stream=stream, query=query)
+        )
     except KeyboardInterrupt:
         # Graceful exit on Ctrl+C
         return 0

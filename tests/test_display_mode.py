@@ -1,7 +1,5 @@
 """Tests for pane display modes."""
 
-import pytest
-
 from uptop.models.base import DisplayMode
 
 

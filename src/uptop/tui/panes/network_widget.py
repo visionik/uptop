@@ -75,9 +75,7 @@ class NetworkWidget(Widget):
         data: The NetworkData object containing interface and connection info
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     NetworkWidget {
         width: 100%;
         height: 100%;
@@ -384,5 +382,5 @@ class NetworkWidget(Widget):
         """
         if mode is not None and mode != self._display_mode:
             self._display_mode = mode
-            self.recompose()
+            self.refresh(recompose=True)
         self.data = data

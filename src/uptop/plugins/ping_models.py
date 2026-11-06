@@ -24,9 +24,7 @@ class PingMetrics(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    latency_ms: float | None = gauge_field(
-        "Latency in milliseconds", default=None, ge=0.0
-    )
+    latency_ms: float | None = gauge_field("Latency in milliseconds", default=None, ge=0.0)
     success: bool = Field(..., description="Whether ping succeeded")
     timestamp: float = Field(..., description="Unix timestamp of measurement")
 
@@ -55,25 +53,15 @@ class HostPingResult(BaseModel):
     host: str = Field(..., description="Hostname or IP address")
     ip_address: str | None = Field(default=None, description="Resolved IP address")
     status: str = Field(..., description="up|down|dns_failed|timeout")
-    current_latency_ms: float | None = gauge_field(
-        "Current latency", default=None, ge=0.0
-    )
-    min_latency_ms: float | None = gauge_field(
-        "Minimum latency", default=None, ge=0.0
-    )
-    avg_latency_ms: float | None = gauge_field(
-        "Average latency", default=None, ge=0.0
-    )
-    max_latency_ms: float | None = gauge_field(
-        "Maximum latency", default=None, ge=0.0
-    )
+    current_latency_ms: float | None = gauge_field("Current latency", default=None, ge=0.0)
+    min_latency_ms: float | None = gauge_field("Minimum latency", default=None, ge=0.0)
+    avg_latency_ms: float | None = gauge_field("Average latency", default=None, ge=0.0)
+    max_latency_ms: float | None = gauge_field("Maximum latency", default=None, ge=0.0)
     jitter_ms: float | None = gauge_field("Jitter (stddev)", default=None, ge=0.0)
     packet_loss_percent: float = gauge_field(
         "Packet loss percentage", default=0.0, ge=0.0, le=100.0
     )
-    consecutive_failures: int = counter_field(
-        "Consecutive failure count", default=0, ge=0
-    )
+    consecutive_failures: int = counter_field("Consecutive failure count", default=0, ge=0)
     alert_level: str = Field(default="ok", description="ok|warning|critical")
     history: list[PingMetrics] = Field(
         default_factory=list, description="Recent ping history (max 300)"
@@ -94,9 +82,7 @@ class PingData(MetricData):
         hosts_down: Number of unreachable hosts
     """
 
-    hosts: list[HostPingResult] = Field(
-        default_factory=list, description="Per-host ping results"
-    )
+    hosts: list[HostPingResult] = Field(default_factory=list, description="Per-host ping results")
     total_hosts: int = Field(default=0, ge=0, description="Total configured hosts")
     hosts_up: int = Field(default=0, ge=0, description="Number of reachable hosts")
     hosts_down: int = Field(default=0, ge=0, description="Number of unreachable hosts")

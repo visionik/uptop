@@ -15,7 +15,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, ListView, ListItem, Static
+from textual.widgets import Input, Label, ListItem, ListView, Static
 
 if TYPE_CHECKING:
     from uptop.plugins.registry import PluginRegistry
@@ -280,9 +280,9 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
         # Add plugins from registry
         try:
             from uptop.models.base import PluginType
-            
+
             pane_plugins = self._plugin_registry.get_plugins_by_type(PluginType.PANE)
-            
+
             for plugin in pane_plugins:
                 metadata = plugin.get_metadata()
                 items.append(
@@ -345,7 +345,9 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
                 return  # Already showing
             # Remove ListView and show message
             results_list.remove()
-            results_area.mount(Static("No matching plugins or layouts found.", classes="no-results"))
+            results_area.mount(
+                Static("No matching plugins or layouts found.", classes="no-results")
+            )
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle search input changes.
@@ -354,7 +356,7 @@ class CommandPaletteScreen(ModalScreen[CommandPaletteResult | None]):
             event: Input changed event
         """
         self._update_results(event.value)
-    
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key on search input - select the highlighted item.
 

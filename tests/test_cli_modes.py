@@ -11,7 +11,7 @@ This module tests the CLI mode functionality including:
 
 import json
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -26,7 +26,7 @@ from uptop.cli_runner import (
     run_cli_once,
     validate_pane_names,
 )
-from uptop.config import Config, load_config
+from uptop.config import load_config
 from uptop.formatters import JsonFormatter, PrometheusFormatter
 from uptop.models.base import MetricData
 
@@ -301,7 +301,7 @@ class TestRunCliMode:
         """Test continuous mode works (but we can't actually run it in tests)."""
         # Continuous mode would run forever, so we can't actually test it
         # Just verify the function exists and accepts the parameters
-        config = load_config()
+        load_config()
         # We skip actually running it since it would hang
         pytest.skip("Continuous mode would run forever in tests")
 
@@ -386,7 +386,7 @@ class TestCliPrometheusOutput:
         result = runner.invoke(app, ["--prometheus", "--once", "--panes", "cpu"])
         output = result.stdout
         # Each line should end with a number (possibly with timestamp)
-        lines = [l for l in output.strip().split("\n") if not l.startswith("#")]
+        lines = [line for line in output.strip().split("\n") if not line.startswith("#")]
         for line in lines:
             if line.strip():
                 # Line format: metric_name{labels} value [timestamp]

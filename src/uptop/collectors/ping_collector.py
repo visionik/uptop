@@ -13,14 +13,12 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict, deque
-from collections.abc import Sequence
 import logging
 import platform
 import re
 import socket
 import statistics
 import time
-from typing import Any
 
 from uptop.collectors.base import DataCollector
 from uptop.plugins.ping_config import PingHostConfig, PingPluginConfig, PingThresholds
@@ -57,12 +55,10 @@ class PingCollector(DataCollector[PingData]):
         self._history: dict[str, deque[PingMetrics]] = defaultdict(
             lambda: deque(maxlen=config.history_size)
         )
-        self._consecutive_failures: dict[str, int] = defaultdict(int)
+        self._host_consecutive_failures: dict[str, int] = defaultdict(int)
         self._os_type = platform.system().lower()
 
-    def _get_ping_command(
-        self, host: str, count: int, timeout: float
-    ) -> list[str]:
+    def _get_ping_command(self, host: str, count: int, timeout: float) -> list[str]:
         """Get the platform-specific ping command.
 
         Args:
@@ -82,19 +78,17 @@ class PingCollector(DataCollector[PingData]):
                 str(int(timeout * 1000)),  # macOS uses milliseconds
                 host,
             ]
-        else:  # Linux and others
-            return [
-                "/bin/ping",
-                "-c",
-                str(count),
-                "-W",
-                str(int(timeout)),  # Linux uses seconds
-                host,
-            ]
+        # Linux and others
+        return [
+            "/bin/ping",
+            "-c",
+            str(count),
+            "-W",
+            str(int(timeout)),  # Linux uses seconds
+            host,
+        ]
 
-    async def _resolve_hostname(
-        self, host: str, host_config: PingHostConfig
-    ) -> str | None:
+    async def _resolve_hostname(self, host: str, host_config: PingHostConfig) -> str | None:
         """Resolve hostname to IP address with retry logic.
 
         Args:
@@ -117,28 +111,24 @@ class PingCollector(DataCollector[PingData]):
             try:
                 # Run blocking DNS lookup in thread pool
                 loop = asyncio.get_event_loop()
-                ip = await loop.run_in_executor(
-                    None, socket.gethostbyname, host
-                )
+                ip = await loop.run_in_executor(None, socket.gethostbyname, host)
                 self._dns_cache[host] = ip
                 logger.debug(f"Resolved {host} to {ip}")
                 return ip
             except socket.gaierror as e:
                 if attempt < max_attempts - 1:
                     delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]
-                    logger.debug(
-                        f"DNS resolution failed for {host}, retrying in {delay}s: {e}"
-                    )
+                    logger.debug(f"DNS resolution failed for {host}, retrying in {delay}s: {e}")
                     await asyncio.sleep(delay)
                 else:
-                    logger.warning(f"DNS resolution failed for {host} after {max_attempts} attempts")
+                    logger.warning(
+                        f"DNS resolution failed for {host} after {max_attempts} attempts"
+                    )
                     return None
 
         return None
 
-    async def _execute_ping(
-        self, host: str, count: int, timeout: float
-    ) -> tuple[str, str, int]:
+    async def _execute_ping(self, host: str, count: int, timeout: float) -> tuple[str, str, int]:
         """Execute ping command.
 
         Args:
@@ -150,7 +140,7 @@ class PingCollector(DataCollector[PingData]):
             Tuple of (stdout, stderr, exit_code)
         """
         cmd = self._get_ping_command(host, count, timeout)
-        
+
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -174,9 +164,7 @@ class PingCollector(DataCollector[PingData]):
             logger.error(f"Failed to execute ping command: {e}")
             return "", str(e), 1
 
-    def _parse_ping_output(
-        self, output: str, sent_count: int
-    ) -> tuple[list[float], float]:
+    def _parse_ping_output(self, output: str, sent_count: int) -> tuple[list[float], float]:
         """Parse ping command output.
 
         Args:
@@ -192,7 +180,7 @@ class PingCollector(DataCollector[PingData]):
         # Parse individual ping lines for latencies
         # Pattern matches: "64 bytes from ... time=42.5 ms" (Linux/macOS)
         time_pattern = re.compile(r"time[=<]([0-9.]+)\s*ms", re.IGNORECASE)
-        
+
         for line in output.split("\n"):
             match = time_pattern.search(line)
             if match:
@@ -271,60 +259,35 @@ class PingCollector(DataCollector[PingData]):
         """
         self._history[host].append(metric)
 
-    async def _ping_host(
-        self, host_config: PingHostConfig
-    ) -> HostPingResult:
-        """Ping a single host and collect metrics.
-
-        Args:
-            host_config: Host configuration
-
-        Returns:
-            HostPingResult with collected metrics
-        """
+    async def _ping_host(self, host_config: PingHostConfig) -> HostPingResult:
+        """Ping a single host and collect metrics."""
         host = host_config.host
         timestamp = time.time()
 
-        # Resolve hostname
         ip_address = await self._resolve_hostname(host, host_config)
         if ip_address is None:
-            self._consecutive_failures[host] += 1
+            self._host_consecutive_failures[host] += 1
             return HostPingResult(
                 host=host,
                 ip_address=None,
                 status="dns_failed",
                 last_updated=timestamp,
-                consecutive_failures=self._consecutive_failures[host],
+                consecutive_failures=self._host_consecutive_failures[host],
             )
 
-        # Execute ping
         timeout = host_config.timeout or self.config.default_timeout
         count = self.config.pings_per_check
-        
-        stdout, stderr, exit_code = await self._execute_ping(
-            ip_address, count, timeout
-        )
-
-        # Parse results
+        stdout, _stderr, exit_code = await self._execute_ping(ip_address, count, timeout)
         latencies, packet_loss = self._parse_ping_output(stdout, count)
 
-        # Determine status
         if not latencies and packet_loss >= 100.0:
             status = "down"
-            current_latency = None
-            min_lat = None
-            avg_lat = None
-            max_lat = None
-            jitter = None
-            self._consecutive_failures[host] += 1
+            current_latency = min_lat = avg_lat = max_lat = jitter = None
+            self._host_consecutive_failures[host] += 1
         elif exit_code != 0 and not latencies:
             status = "timeout"
-            current_latency = None
-            min_lat = None
-            avg_lat = None
-            max_lat = None
-            jitter = None
-            self._consecutive_failures[host] += 1
+            current_latency = min_lat = avg_lat = max_lat = jitter = None
+            self._host_consecutive_failures[host] += 1
         else:
             status = "up"
             current_latency = latencies[-1] if latencies else None
@@ -332,27 +295,17 @@ class PingCollector(DataCollector[PingData]):
             avg_lat = statistics.mean(latencies) if latencies else None
             max_lat = max(latencies) if latencies else None
             jitter = statistics.stdev(latencies) if len(latencies) > 1 else 0.0
-            self._consecutive_failures[host] = 0  # Reset on success
+            self._host_consecutive_failures[host] = 0
 
-        # Update history
-        if current_latency is not None:
-            metric = PingMetrics(
-                latency_ms=current_latency,
-                success=True,
-                timestamp=timestamp,
-            )
-        else:
-            metric = PingMetrics(
-                latency_ms=None,
-                success=False,
-                timestamp=timestamp,
-            )
+        metric = PingMetrics(
+            latency_ms=current_latency,
+            success=current_latency is not None,
+            timestamp=timestamp,
+        )
         self._update_history(host, metric)
 
-        # Evaluate thresholds
         thresholds = host_config.thresholds or self.config.default_thresholds
         alert_level = self._evaluate_thresholds(current_latency, packet_loss, thresholds)
-
         return HostPingResult(
             host=host,
             ip_address=ip_address,
@@ -363,7 +316,7 @@ class PingCollector(DataCollector[PingData]):
             max_latency_ms=max_lat,
             jitter_ms=jitter,
             packet_loss_percent=packet_loss,
-            consecutive_failures=self._consecutive_failures[host],
+            consecutive_failures=self._host_consecutive_failures[host],
             alert_level=alert_level,
             history=list(self._history[host]),
             last_updated=timestamp,

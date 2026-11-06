@@ -9,7 +9,7 @@ This module defines Pydantic models for ping plugin configuration including:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class PingThresholds(BaseModel):
@@ -37,22 +37,19 @@ class PingThresholds(BaseModel):
 
     @field_validator("critical_latency_ms")
     @classmethod
-    def validate_critical_greater_than_warning(
-        cls, v: float, info: dict
-    ) -> float:
+    def validate_critical_greater_than_warning(cls, v: float, info: ValidationInfo) -> float:
         """Ensure critical threshold is greater than warning threshold."""
         if "warning_latency_ms" in info.data:
             warning = info.data["warning_latency_ms"]
             if v <= warning:
                 raise ValueError(
-                    f"critical_latency_ms ({v}) must be greater than "
-                    f"warning_latency_ms ({warning})"
+                    f"critical_latency_ms ({v}) must be greater than warning_latency_ms ({warning})"
                 )
         return v
 
     @field_validator("critical_packet_loss_percent")
     @classmethod
-    def validate_critical_packet_loss(cls, v: float, info: dict) -> float:
+    def validate_critical_packet_loss(cls, v: float, info: ValidationInfo) -> float:
         """Ensure critical packet loss is greater than warning."""
         if "warning_packet_loss_percent" in info.data:
             warning = info.data["warning_packet_loss_percent"]
@@ -101,12 +98,8 @@ class PingHostConfig(BaseModel):
     """
 
     host: str = Field(..., min_length=1, description="Hostname or IP address")
-    interval: float | None = Field(
-        default=None, ge=0.1, description="Ping interval in seconds"
-    )
-    timeout: float | None = Field(
-        default=None, ge=0.5, description="Ping timeout in seconds"
-    )
+    interval: float | None = Field(default=None, ge=0.1, description="Ping interval in seconds")
+    timeout: float | None = Field(default=None, ge=0.5, description="Ping timeout in seconds")
     thresholds: PingThresholds | None = Field(
         default=None, description="Per-host threshold overrides"
     )
@@ -137,9 +130,7 @@ class PingPluginConfig(BaseModel):
     concurrent_limit: int = Field(
         default=10, ge=1, le=100, description="Max concurrent ping operations"
     )
-    pings_per_check: int = Field(
-        default=3, ge=1, le=10, description="Number of pings per check"
-    )
+    pings_per_check: int = Field(default=3, ge=1, le=10, description="Number of pings per check")
     history_size: int = Field(
         default=300, ge=10, le=10000, description="History buffer size per host"
     )

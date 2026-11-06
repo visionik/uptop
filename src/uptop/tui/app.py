@@ -36,7 +36,6 @@ from uptop.tui.messages import (
     PluginSwapped,
 )
 from uptop.tui.screens import (
-    CommandPaletteResult,
     CommandPaletteScreen,
     ConfirmKillScreen,
     FilterScreen,
@@ -511,9 +510,9 @@ class UptopApp(App[None]):
             with sentry_sdk.start_transaction(
                 name=f"tui_refresh:{pane_name}",
                 op="plugin.refresh",
-            ) as transaction:
+            ):
                 # Collect data in a child span
-                with sentry_sdk.start_span(name=f"collect:{ pane_name }") as collect_span:
+                with sentry_sdk.start_span(name=f"collect:{pane_name}"):
                     collect_start = time.monotonic()
                     data = await plugin.collect_data()
 
@@ -533,9 +532,9 @@ class UptopApp(App[None]):
             with sentry_sdk.start_transaction(
                 name=f"tui_render:{pane_name}",
                 op="plugin.render",
-            ) as render_txn:
+            ):
                 render_start = time.monotonic()
-                with sentry_sdk.start_span(name=pane_name) as render_span:
+                with sentry_sdk.start_span(name=pane_name):
                     widget = plugin.render_tui(data, size, mode)
 
             # Update the container
@@ -1030,19 +1029,14 @@ def run_app(config: Config | None = None, debug_mode: bool = False) -> None:
     # Discover any external plugins
     registry.discover_all()
 
-    # Initialize all pane plugins
-    from uptop.models.base import PluginType
-
-    for plugin in registry.get_plugins_by_type(PluginType.PANE):
-        try:
-            plugin.initialize()
-            logger.info(f"Initialized pane plugin: {plugin.name}")
-        except Exception as e:
-            logger.error(f"Failed to initialize plugin {plugin.name}: {e}")
+    plugin_configs = config.plugins.plugin_config if config else {}
+    registry.initialize_all(plugin_configs)
 
     app = UptopApp(config=config, plugin_registry=registry, debug_mode=debug_mode)
-    app.run()
+    try:
+        app.run()
+    finally:
+        registry.shutdown_all()
 
-    # Print performance report if debug mode was enabled
     if debug_mode:
         print("\n" + app.get_performance_report())

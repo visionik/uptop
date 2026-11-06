@@ -115,9 +115,7 @@ class Sparkline(Widget):
         ```
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     Sparkline {
         width: 100%;
         height: 1;

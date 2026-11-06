@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from uptop.performance import (
     CachedValue,
     CollectorProfiler,
@@ -141,7 +139,7 @@ class TestLruCacheTimed:
             return x * 2
 
         # First call
-        result1 = expensive_function(5)
+        expensive_function(5)
         assert call_count == 1
 
         # Wait for expiration

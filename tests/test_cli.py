@@ -18,7 +18,6 @@ from uptop.cli import (
     Theme,
     app,
     build_cli_overrides,
-    check_plugins_callback,
     detect_mode,
     validate_plugin,
 )
@@ -172,10 +171,10 @@ class TestCLIMain:
         assert "panes" in parsed
 
     def test_markdown_format(self) -> None:
-        """Test --markdown flag (not yet implemented, should error or fallback)."""
+        """Test --markdown flag produces a readable snapshot."""
         result = runner.invoke(app, ["--markdown", "--panes", "cpu"])
-        # Markdown not implemented, should error
-        assert result.exit_code == 1 or "Unknown format" in (result.stdout + result.stderr)
+        assert result.exit_code == 0
+        assert "# uptop system snapshot" in result.stdout
 
     def test_prometheus_format(self) -> None:
         """Test --prometheus flag produces Prometheus format."""
@@ -736,7 +735,10 @@ class TestPluginValidationEdgeCases:
         assert len(result.errors) == 0
 
     def test_validate_formatter_plugin_missing_format(self) -> None:
-        """Test validation catches missing format method - already covered by base class validation."""
+        """Test validation catches a missing format method.
+
+        Base-class validation covers the implementation details.
+        """
         from uptop.plugin_api.base import FormatterPlugin
 
         class ValidFormatterPlugin(FormatterPlugin):
@@ -1056,7 +1058,7 @@ interval: -100
     def test_tui_command_execution_mocked(self) -> None:
         """Test TUI command execution with mocked run_app."""
         with patch("uptop.cli.run_uptop") as mock_run:
-            result = runner.invoke(app, ["tui", "--theme", "dark"])
+            runner.invoke(app, ["tui", "--theme", "dark"])
             # TUI should invoke run_uptop with config having default_mode = "tui"
             if mock_run.called:
                 args, kwargs = mock_run.call_args
@@ -1091,11 +1093,11 @@ interval: -100
         finally:
             os.unlink(temp_path)
 
-    def test_cli_command_markdown_not_implemented(self) -> None:
-        """Test CLI command with markdown format (not implemented)."""
+    def test_cli_command_markdown_output(self) -> None:
+        """Test CLI command supports Markdown output."""
         result = runner.invoke(app, ["cli", "--markdown", "--panes", "cpu"])
-        # Markdown not implemented
-        assert result.exit_code == 1 or "Unknown format" in (result.stdout + result.stderr)
+        assert result.exit_code == 0
+        assert "# uptop system snapshot" in result.stdout
 
 
 class TestRunUptopFunction:
@@ -1110,7 +1112,7 @@ class TestRunUptopFunction:
 
         with patch("uptop.tui.run_app") as mock_run_app:
             run_uptop(config)
-            mock_run_app.assert_called_once_with(config)
+            mock_run_app.assert_called_once_with(config, debug_mode=False)
 
     def test_run_uptop_cli_mode(self) -> None:
         """Test run_uptop in CLI mode calls run_cli_mode."""
@@ -1130,7 +1132,7 @@ class TestRunUptopFunction:
 
         config = Config(default_mode="cli")
 
-        with patch("uptop.cli_runner.run_cli_mode", return_value=1) as mock_run_cli:
+        with patch("uptop.cli_runner.run_cli_mode", return_value=1):
             with pytest.raises(typer.Exit) as exc_info:
                 run_uptop(config)
             assert exc_info.value.exit_code == 1

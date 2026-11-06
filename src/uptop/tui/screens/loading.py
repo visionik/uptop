@@ -51,7 +51,7 @@ class LoadingMessage(Static):
         subtitle: str = "Loading...",
         *,
         name: str | None = None,
-        id: str | None = None,
+        id: str | None = None,  # noqa: A002
         classes: str | None = None,
     ) -> None:
         """Initialize the loading message.
@@ -113,7 +113,7 @@ class LoadingScreen(Screen[None]):
         message: str = "Initializing...",
         *,
         name: str | None = None,
-        id: str | None = None,
+        id: str | None = None,  # noqa: A002
         classes: str | None = None,
     ) -> None:
         """Initialize the loading screen.
@@ -129,15 +129,13 @@ class LoadingScreen(Screen[None]):
 
     def compose(self) -> ComposeResult:
         """Compose the loading screen layout."""
-        with Center():
-            with Middle():
-                with Static(id="loading-container"):
-                    yield LoadingMessage(
-                        title="uptop",
-                        subtitle=self._message,
-                        id="loading-message",
-                    )
-                    yield LoadingIndicator()
+        with Center(), Middle(), Static(id="loading-container"):
+            yield LoadingMessage(
+                title="uptop",
+                subtitle=self._message,
+                id="loading-message",
+            )
+            yield LoadingIndicator()
 
     def update_message(self, message: str) -> None:
         """Update the loading status message.

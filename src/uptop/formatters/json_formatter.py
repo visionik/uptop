@@ -163,8 +163,7 @@ class JsonFormatter(FormatterPlugin):
         # Serialize to JSON
         if self.pretty_print:
             return json.dumps(output, indent=2, ensure_ascii=False)
-        else:
-            return json.dumps(output, ensure_ascii=False, separators=(",", ":"))
+        return json.dumps(output, ensure_ascii=False, separators=(",", ":"))
 
     def format_panes(self, panes: dict[str, MetricData]) -> str:
         """Format a dictionary of pane data as JSON.

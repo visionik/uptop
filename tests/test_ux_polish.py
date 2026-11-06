@@ -9,8 +9,6 @@ This module tests:
 
 from __future__ import annotations
 
-import pytest
-
 from uptop.plugins.lazy_loader import (
     DEFERRABLE_PLUGINS,
     ESSENTIAL_PLUGINS,

@@ -154,7 +154,7 @@ def validate_plugin(
             current_major = int(API_VERSION.split(".")[0])
             if plugin_major != current_major:
                 errors.append(
-                    f"Incompatible API version {plugin_api_version} " f"(expected {API_VERSION})"
+                    f"Incompatible API version {plugin_api_version} (expected {API_VERSION})"
                 )
         except (ValueError, IndexError):
             errors.append(f"Invalid API version format: {plugin_api_version}")
@@ -897,6 +897,7 @@ def run_uptop(
             once=once,
             stream=stream,
             config=config,
+            query=query,
         )
 
         if exit_code != 0:

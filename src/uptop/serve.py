@@ -39,9 +39,7 @@ class UptopServer(Server):
         favicon_path = Path(__file__).parent.parent.parent / "static" / "favicon.ico"
 
         if favicon_path.exists():
-            return web.FileResponse(
-                favicon_path, headers={"Content-Type": "image/x-icon"}
-            )
+            return web.FileResponse(favicon_path, headers={"Content-Type": "image/x-icon"})
 
         # If not found, return 404
         raise web.HTTPNotFound()

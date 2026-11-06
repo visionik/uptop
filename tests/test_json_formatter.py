@@ -12,7 +12,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 
 # UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
@@ -21,7 +21,6 @@ try:
 except ImportError:
     UTC = timezone.utc
 
-import pytest
 
 from uptop.formatters import JsonFormatter
 from uptop.formatters.json_formatter import JsonFormatter as JsonFormatterDirect

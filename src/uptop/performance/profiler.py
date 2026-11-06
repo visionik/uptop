@@ -9,12 +9,13 @@ This module provides profiling tools for measuring collector and render times:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import wraps
 import logging
 from statistics import mean, stdev
 import time
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -366,7 +367,7 @@ class PerformanceMetrics:
         frame_stats = self.render_profiler.get_frame_stats()
         if frame_stats.count > 0:
             fps = 1000.0 / frame_stats.avg_ms if frame_stats.avg_ms > 0 else 0
-            lines.append(f"  Frame: avg={frame_stats.avg_ms:.1f}ms " f"({fps:.1f} FPS theoretical)")
+            lines.append(f"  Frame: avg={frame_stats.avg_ms:.1f}ms ({fps:.1f} FPS theoretical)")
 
         for name, stats in self.render_profiler.get_all_stats().items():
             lines.append(

@@ -1,7 +1,7 @@
 """Tests for ping monitoring configuration models."""
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from uptop.plugins.ping_config import (
     PingHostConfig,

@@ -1,7 +1,7 @@
 """Tests for the Network Widget."""
 
 import pytest
-from textual.widgets import DataTable, Static
+from textual.widgets import DataTable
 
 from uptop.plugins.network import ConnectionData, NetworkData, NetworkInterfaceData
 from uptop.tui.panes.network_widget import (
@@ -344,8 +344,8 @@ class TestNetworkWidgetWithApp:
             table = widget.query_one("#interface-table", DataTable)
             assert table is not None
 
-            # Check that summary line exists
-            summary = widget.query_one("#summary-line", Static)
+            # Check that the summary table exists
+            summary = widget.query_one("#summary-table", DataTable)
             assert summary is not None
 
     @pytest.mark.asyncio

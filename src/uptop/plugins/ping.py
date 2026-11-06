@@ -65,11 +65,7 @@ class PingPane(PanePlugin):
         # Load ping config from the uptop config file
         try:
             uptop_config = load_config()
-            if hasattr(uptop_config, "ping"):
-                ping_config = uptop_config.ping
-            else:
-                # No ping config, use defaults
-                ping_config = PingPluginConfig()
+            ping_config = uptop_config.ping if hasattr(uptop_config, "ping") else PingPluginConfig()
         except Exception:
             # Config load failed, use defaults
             ping_config = PingPluginConfig()

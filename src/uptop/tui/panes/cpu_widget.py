@@ -101,9 +101,7 @@ class HiResProgressBar(Static):
     Provides 8 sub-character levels of precision for smooth progress display.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     HiResProgressBar {
         width: 1fr;
         height: 1;
@@ -166,9 +164,7 @@ class CPUProgressBar(Static):
         bar_width: Width of the progress bar in characters
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     CPUProgressBar {
         width: auto;
         height: 1;
@@ -229,9 +225,7 @@ class CoreUsageRow(Widget):
     Format: "  n: xx% [progressbar...]"
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     CoreUsageRow {
         width: 100%;
         height: 1;
@@ -302,9 +296,7 @@ class CPUWidget(Widget):
         history_size: Maximum number of historical values to keep for sparkline.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     CPUWidget {
         width: 100%;
         height: auto;
@@ -723,7 +715,7 @@ class CPUWidget(Widget):
         """
         if mode is not None and mode != self._display_mode:
             self._display_mode = mode
-            self.recompose()
+            self.refresh(recompose=True)
         self.cpu_data = data
 
     def clear_history(self) -> None:

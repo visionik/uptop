@@ -1,7 +1,7 @@
 """Tests for ping collector."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -44,7 +44,7 @@ class TestPingCollectorInit:
         assert collector.default_interval == 1.0
         assert len(collector._dns_cache) == 0
         assert len(collector._history) == 0
-        assert len(collector._consecutive_failures) == 0
+        assert len(collector._host_consecutive_failures) == 0
 
     def test_history_buffer_size(self):
         """Test history buffer respects config size."""
@@ -70,7 +70,7 @@ class TestPingCommand:
         """Test macOS ping command generation."""
         mock_system.return_value = "Darwin"
         collector._os_type = "darwin"
-        
+
         cmd = collector._get_ping_command("example.com", 3, 2.0)
         assert cmd == ["/sbin/ping", "-c", "3", "-W", "2000", "example.com"]
 
@@ -79,7 +79,7 @@ class TestPingCommand:
         """Test Linux ping command generation."""
         mock_system.return_value = "Linux"
         collector._os_type = "linux"
-        
+
         cmd = collector._get_ping_command("example.com", 3, 2.0)
         assert cmd == ["/bin/ping", "-c", "3", "-W", "2", "example.com"]
 
@@ -91,7 +91,7 @@ class TestDNSResolution:
     async def test_resolve_hostname_success(self, collector):
         """Test successful DNS resolution."""
         host_config = PingHostConfig(host="example.com")
-        
+
         with patch("socket.gethostbyname", return_value="93.184.216.34"):
             ip = await collector._resolve_hostname("example.com", host_config)
             assert ip == "93.184.216.34"
@@ -102,7 +102,7 @@ class TestDNSResolution:
         """Test that DNS resolution uses cache."""
         collector._dns_cache["example.com"] = "93.184.216.34"
         host_config = PingHostConfig(host="example.com")
-        
+
         # Should not call gethostbyname
         with patch("socket.gethostbyname") as mock_resolve:
             ip = await collector._resolve_hostname("example.com", host_config)
@@ -113,8 +113,9 @@ class TestDNSResolution:
     async def test_resolve_hostname_failure(self, collector):
         """Test DNS resolution failure."""
         import socket
+
         host_config = PingHostConfig(host="nonexistent.invalid")
-        
+
         with patch("socket.gethostbyname", side_effect=socket.gaierror("Name resolution failed")):
             ip = await collector._resolve_hostname("nonexistent.invalid", host_config)
             assert ip is None
@@ -132,16 +133,17 @@ class TestDNSResolution:
         )
         collector = PingCollector(config)
         host_config = PingHostConfig(host="example.com")
-        
+
         import socket
+
         attempts = []
-        
+
         def mock_resolve(host):
             attempts.append(1)
             if len(attempts) < 2:
                 raise socket.gaierror("Temporary failure")
             return "93.184.216.34"
-        
+
         with patch("socket.gethostbyname", side_effect=mock_resolve):
             ip = await collector._resolve_hostname("example.com", host_config)
             assert ip == "93.184.216.34"
@@ -161,7 +163,7 @@ class TestPingParsing:
 --- example.com ping statistics ---
 3 packets transmitted, 3 received, 0.0% packet loss
 round-trip min/avg/max/stddev = 41.8/42.5/43.2/0.6 ms"""
-        
+
         latencies, packet_loss = collector._parse_ping_output(output, 3)
         assert len(latencies) == 3
         assert latencies == [42.5, 43.2, 41.8]
@@ -177,7 +179,7 @@ round-trip min/avg/max/stddev = 41.8/42.5/43.2/0.6 ms"""
 --- example.com ping statistics ---
 3 packets transmitted, 3 received, 0% packet loss, time 2003ms
 rtt min/avg/max/mdev = 41.8/42.5/43.2/0.6 ms"""
-        
+
         latencies, packet_loss = collector._parse_ping_output(output, 3)
         assert len(latencies) == 3
         assert packet_loss == 0.0
@@ -190,7 +192,7 @@ Request timeout for icmp_seq 1
 
 --- example.com ping statistics ---
 3 packets transmitted, 1 received, 66.7% packet loss"""
-        
+
         latencies, packet_loss = collector._parse_ping_output(output, 3)
         assert len(latencies) == 1
         assert latencies[0] == 42.5
@@ -206,7 +208,7 @@ Request timeout for icmp_seq 2
 
 --- example.com ping statistics ---
 3 packets transmitted, 0 received, 100.0% packet loss"""
-        
+
         latencies, packet_loss = collector._parse_ping_output(output, 3)
         assert len(latencies) == 0
         assert packet_loss == 100.0
@@ -270,23 +272,23 @@ class TestHistoryManagement:
     def test_update_history(self, collector):
         """Test updating history buffer."""
         from uptop.plugins.ping_models import PingMetrics
-        
+
         metric = PingMetrics(latency_ms=42.5, success=True, timestamp=1234567890.0)
         collector._update_history("example.com", metric)
-        
+
         assert len(collector._history["example.com"]) == 1
         assert collector._history["example.com"][0] == metric
 
     def test_history_respects_max_size(self):
         """Test that history buffer respects max size."""
         from uptop.plugins.ping_models import PingMetrics
-        
+
         config = PingPluginConfig(
             hosts=[PingHostConfig(host="example.com")],
             history_size=50,  # Use valid size >= 10
         )
         collector = PingCollector(config)
-        
+
         # Add 100 metrics
         for i in range(100):
             metric = PingMetrics(
@@ -295,7 +297,7 @@ class TestHistoryManagement:
                 timestamp=float(i),
             )
             collector._update_history("example.com", metric)
-        
+
         # Should only keep last 50
         assert len(collector._history["example.com"]) == 50
         # Should keep the most recent ones (50-99)
@@ -310,7 +312,7 @@ class TestPingHostIntegration:
     async def test_ping_host_success(self, collector):
         """Test successful ping of a host."""
         host_config = PingHostConfig(host="example.com")
-        
+
         ping_output = """PING example.com (93.184.216.34): 56 data bytes
 64 bytes from 93.184.216.34: icmp_seq=0 ttl=56 time=42.5 ms
 64 bytes from 93.184.216.34: icmp_seq=1 ttl=56 time=43.2 ms
@@ -318,13 +320,13 @@ class TestPingHostIntegration:
 
 --- example.com ping statistics ---
 3 packets transmitted, 3 received, 0.0% packet loss"""
-        
-        with patch("socket.gethostbyname", return_value="93.184.216.34"):
-            with patch.object(
-                collector, "_execute_ping", return_value=(ping_output, "", 0)
-            ):
-                result = await collector._ping_host(host_config)
-        
+
+        with (
+            patch("socket.gethostbyname", return_value="93.184.216.34"),
+            patch.object(collector, "_execute_ping", return_value=(ping_output, "", 0)),
+        ):
+            result = await collector._ping_host(host_config)
+
         assert result.host == "example.com"
         assert result.ip_address == "93.184.216.34"
         assert result.status == "up"
@@ -339,11 +341,12 @@ class TestPingHostIntegration:
     async def test_ping_host_dns_failure(self, collector):
         """Test ping with DNS failure."""
         import socket
+
         host_config = PingHostConfig(host="nonexistent.invalid")
-        
+
         with patch("socket.gethostbyname", side_effect=socket.gaierror("DNS failed")):
             result = await collector._ping_host(host_config)
-        
+
         assert result.host == "nonexistent.invalid"
         assert result.ip_address is None
         assert result.status == "dns_failed"
@@ -353,7 +356,7 @@ class TestPingHostIntegration:
     async def test_ping_host_down(self, collector):
         """Test ping of down host."""
         host_config = PingHostConfig(host="example.com")
-        
+
         ping_output = """PING example.com (93.184.216.34): 56 data bytes
 Request timeout for icmp_seq 0
 Request timeout for icmp_seq 1
@@ -361,13 +364,13 @@ Request timeout for icmp_seq 2
 
 --- example.com ping statistics ---
 3 packets transmitted, 0 received, 100.0% packet loss"""
-        
-        with patch("socket.gethostbyname", return_value="93.184.216.34"):
-            with patch.object(
-                collector, "_execute_ping", return_value=(ping_output, "", 1)
-            ):
-                result = await collector._ping_host(host_config)
-        
+
+        with (
+            patch("socket.gethostbyname", return_value="93.184.216.34"),
+            patch.object(collector, "_execute_ping", return_value=(ping_output, "", 1)),
+        ):
+            result = await collector._ping_host(host_config)
+
         assert result.status == "down"
         assert result.current_latency_ms is None
         assert result.packet_loss_percent == 100.0
@@ -382,9 +385,9 @@ class TestCollect:
         """Test collect with no configured hosts."""
         config = PingPluginConfig(hosts=[])
         collector = PingCollector(config)
-        
+
         data = await collector.collect()
-        
+
         assert isinstance(data, PingData)
         assert len(data.hosts) == 0
         assert data.total_hosts == 0
@@ -402,11 +405,12 @@ class TestCollect:
             concurrent_limit=10,
         )
         collector = PingCollector(config)
-        
+
         # Mock successful ping
-        from uptop.plugins.ping_models import HostPingResult
         import time
-        
+
+        from uptop.plugins.ping_models import HostPingResult
+
         mock_result = HostPingResult(
             host="example.com",
             ip_address="93.184.216.34",
@@ -414,10 +418,10 @@ class TestCollect:
             current_latency_ms=42.5,
             last_updated=time.time(),
         )
-        
+
         with patch.object(collector, "_ping_host", return_value=mock_result):
             data = await collector.collect()
-        
+
         assert isinstance(data, PingData)
         assert data.total_hosts == 2
         assert len(data.hosts) == 2
@@ -430,27 +434,29 @@ class TestCollect:
             concurrent_limit=5,
         )
         collector = PingCollector(config)
-        
+
         # Track concurrent executions
         concurrent_count = 0
         max_concurrent = 0
-        
+
         async def mock_ping(host_config):
             nonlocal concurrent_count, max_concurrent
             concurrent_count += 1
             max_concurrent = max(max_concurrent, concurrent_count)
             await asyncio.sleep(0.01)
             concurrent_count -= 1
-            
-            from uptop.plugins.ping_models import HostPingResult
+
             import time
+
+            from uptop.plugins.ping_models import HostPingResult
+
             return HostPingResult(
                 host=host_config.host,
                 status="up",
                 last_updated=time.time(),
             )
-        
+
         with patch.object(collector, "_ping_host", side_effect=mock_ping):
             await collector.collect()
-        
+
         assert max_concurrent <= 5

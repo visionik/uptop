@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 import pytest
-import yaml
 
 from uptop.config import (
     DEFAULT_CONFIG,

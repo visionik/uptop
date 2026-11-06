@@ -102,9 +102,7 @@ class GPUProgressBar(Static):
     or an empty bar pattern when usage is unavailable.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     GPUProgressBar {
         width: 1fr;
         height: 1;
@@ -163,9 +161,7 @@ class GPUWidget(Widget):
         history_size: Maximum number of historical values for sparkline
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     GPUWidget {
         width: 100%;
         height: auto;

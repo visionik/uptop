@@ -35,9 +35,8 @@ def _get_cpu_count() -> int:
 
 
 # Cache whether sensors_temperatures is available
-@lru_cache(maxsize=1)
 def _has_temperature_sensors() -> bool:
-    """Check if temperature sensors are available (cached)."""
+    """Check whether the current psutil backend exposes temperature sensors."""
     return hasattr(psutil, "sensors_temperatures")
 
 

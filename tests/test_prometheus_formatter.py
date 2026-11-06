@@ -22,7 +22,6 @@ try:
 except ImportError:
     UTC = timezone.utc
 
-import pytest
 
 from uptop.formatters.prometheus import (
     PrometheusFormatter,
@@ -204,7 +203,7 @@ class TestLabelFormatting:
 
         output = formatter.format({"panes": {"network": network_data.model_dump()}})
 
-        # Should have id labels (implementation uses "id" from item.get("id", item.get("name", ...)))
+        # The formatter falls back from an item id to its name for labels.
         # NetworkInterfaceData uses "name" field which is picked up as id
         assert '{id="eth0"}' in output
         assert '{id="lo"}' in output
@@ -764,7 +763,6 @@ class TestEdgeCases:
 
     def test_special_float_values(self) -> None:
         """Test handling of special float values (NaN, Inf)."""
-        import math
 
         formatter = PrometheusFormatter()
 

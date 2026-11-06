@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from textual.app import ComposeResult
@@ -24,6 +25,8 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Static
 
 from uptop.tui.widgets.pane_container import PaneContainer
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from uptop.config import Config
@@ -128,9 +131,7 @@ class PlaceholderContent(Static):
     This will be replaced with actual pane widgets in Phase 3.4.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     PlaceholderContent {
         width: 100%;
         height: 100%;
@@ -159,9 +160,7 @@ class GridRow(Horizontal):
     Contains one or more PaneContainers arranged horizontally.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     GridRow {
         width: 100%;
         height: auto;
@@ -194,9 +193,7 @@ class GridLayout(Container):
         ```
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     GridLayout {
         width: 100%;
         height: 100%;

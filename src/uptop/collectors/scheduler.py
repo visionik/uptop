@@ -14,8 +14,8 @@ Key features:
 import asyncio
 from collections.abc import Callable, Coroutine
 import contextlib
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 # UTC was added in Python 3.11, use timezone.utc for 3.10 compatibility
 try:
@@ -484,14 +484,13 @@ class CollectionScheduler:
         threshold_seconds = info.collector.interval * info.stale_threshold_multiplier
         threshold_delta = timedelta(seconds=threshold_seconds)
 
-        if _utcnow() - last_success_time > threshold_delta:
-            if not info.is_stale:
-                logger.warning(
-                    "Collector '%s' data is now stale (last success: %s ago)",
-                    info.collector.name,
-                    _utcnow() - last_success_time,
-                )
-                info.is_stale = True
+        if _utcnow() - last_success_time > threshold_delta and not info.is_stale:
+            logger.warning(
+                "Collector '%s' data is now stale (last success: %s ago)",
+                info.collector.name,
+                _utcnow() - last_success_time,
+            )
+            info.is_stale = True
 
     def is_collector_stale(self, name: str) -> bool:
         """Check if a collector's data is stale.

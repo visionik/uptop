@@ -40,6 +40,7 @@ dev = [
     "pytest-mock>=3.12",
     "pytest-asyncio",
     "pytest-snapshot",
+    "pytest-timeout>=2.3",
     "black>=23",
     "isort>=5.12",
     "ruff>=0.1",
@@ -141,6 +142,7 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 strict_equality = true
+exclude = "^(tests/|test-sentry\\.py$)"
 
 [[tool.mypy.overrides]]
 module = "textual.*"

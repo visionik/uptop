@@ -85,9 +85,7 @@ class MemoryWidget(Widget):
         history_size: Maximum number of historical values to keep for sparkline.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     MemoryWidget {
         width: 100%;
         height: auto;

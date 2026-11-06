@@ -88,19 +88,13 @@ class ConfigError(Exception):
 class ConfigSyntaxError(ConfigError):
     """Error for YAML syntax issues."""
 
-    pass
-
 
 class ConfigValidationError(ConfigError):
     """Error for configuration value validation failures."""
 
-    pass
-
 
 class ConfigKeyError(ConfigError):
     """Error for unknown or invalid configuration keys."""
-
-    pass
 
 
 # Known valid configuration keys at each level for suggestions

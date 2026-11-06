@@ -154,9 +154,9 @@ class TestBuiltInThemes:
                 "progress_bar_background",
             ]:
                 color = getattr(colors, field_name)
-                assert re.match(
-                    hex_pattern, color
-                ), f"Theme '{theme_name}' has invalid color for {field_name}: {color}"
+                assert re.match(hex_pattern, color), (
+                    f"Theme '{theme_name}' has invalid color for {field_name}: {color}"
+                )
 
     def test_theme_colors_match_guidelines(self) -> None:
         """Test theme colors match the specified guidelines."""

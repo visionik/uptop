@@ -55,9 +55,7 @@ class PaneTitleBar(Static):
     This is internal to PaneContainer - use PaneContainer directly.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     PaneTitleBar {
         width: 100%;
         height: 1;
@@ -176,9 +174,7 @@ class ErrorDisplay(Static):
     Shows an error message with a retry hint.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     ErrorDisplay {
         width: 100%;
         height: 100%;
@@ -248,9 +244,7 @@ class ContentArea(VerticalScroll):
     and provides vertical scrolling when content exceeds the available space.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     ContentArea {
         width: 100%;
         height: 1fr;
@@ -271,9 +265,7 @@ class LoadingOverlay(Container):
     providing visual feedback that an update is in progress.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     LoadingOverlay {
         width: 100%;
         height: 100%;
@@ -325,9 +317,7 @@ class PaneContainer(Widget):
         ```
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     PaneContainer {
         width: 100%;
         height: 100%;

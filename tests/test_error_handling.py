@@ -6,7 +6,6 @@ This module tests:
 - 9.2.3: Recovery from transient failures
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 import os
 import tempfile
@@ -16,13 +15,10 @@ try:
     from datetime import UTC  # type: ignore
 except ImportError:
     UTC = timezone.utc
-from typing import Any
-from unittest.mock import patch
 
 import pytest
-import yaml
 
-from uptop.collectors.base import CollectionResult, DataCollector
+from uptop.collectors.base import DataCollector
 from uptop.collectors.scheduler import CollectionScheduler
 from uptop.config import (
     ConfigError,

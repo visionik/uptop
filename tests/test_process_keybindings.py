@@ -175,11 +175,12 @@ class TestSortCycling:
 
     def test_sort_cycle_order_defined(self) -> None:
         """Test that SORT_CYCLE_ORDER is properly defined."""
-        assert len(SORT_CYCLE_ORDER) == 5
+        assert len(SORT_CYCLE_ORDER) == 6
         assert ProcessColumn.CPU in SORT_CYCLE_ORDER
         assert ProcessColumn.MEM in SORT_CYCLE_ORDER
         assert ProcessColumn.PID in SORT_CYCLE_ORDER
         assert ProcessColumn.USER in SORT_CYCLE_ORDER
+        assert ProcessColumn.RUNTIME in SORT_CYCLE_ORDER
         assert ProcessColumn.COMMAND in SORT_CYCLE_ORDER
 
     def test_sort_cycle_order_sequence(self) -> None:
@@ -188,7 +189,8 @@ class TestSortCycling:
         assert SORT_CYCLE_ORDER[1] == ProcessColumn.MEM
         assert SORT_CYCLE_ORDER[2] == ProcessColumn.PID
         assert SORT_CYCLE_ORDER[3] == ProcessColumn.USER
-        assert SORT_CYCLE_ORDER[4] == ProcessColumn.COMMAND
+        assert SORT_CYCLE_ORDER[4] == ProcessColumn.RUNTIME
+        assert SORT_CYCLE_ORDER[5] == ProcessColumn.COMMAND
 
     @pytest.mark.asyncio
     async def test_cycle_sort_from_cpu_to_mem(self) -> None:

@@ -2,8 +2,8 @@
 
 import time
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from uptop.plugins.ping_models import HostPingResult, PingData, PingMetrics
 

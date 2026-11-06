@@ -76,7 +76,8 @@ def init_sentry(
         traces_sample_rate: Sample rate for performance traces (0.0-1.0)
         profile_session_sample_rate: Sample rate for continuous profiling (0.0-1.0)
         debug: Enable Sentry debug mode for troubleshooting
-        event_level: Minimum log level to create Sentry events (default: ERROR in prod, WARNING in dev)
+        event_level: Minimum log level for Sentry events. Defaults to ERROR in production
+            and WARNING in development.
     """
     # Check if Sentry should be disabled (empty DSN from env or explicit parameter)
     effective_dsn = dsn if dsn is not None else os.environ.get("SENTRY_DSN", SENTRY_DSN)

@@ -8,10 +8,11 @@ This module provides caching mechanisms for expensive operations:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache, wraps
 import time
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import psutil
 
@@ -211,6 +212,6 @@ def cached_system_info() -> SystemInfoCache:
     """Get the system info cache instance.
 
     Returns:
-        The SystemInfoCache class (used for accessing cached values)
+        A SystemInfoCache instance for accessing cached values.
     """
-    return SystemInfoCache
+    return SystemInfoCache()

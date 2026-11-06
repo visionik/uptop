@@ -71,9 +71,7 @@ class PartitionDisplay(Static):
     Shows mountpoint, usage bar, and size information.
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     PartitionDisplay {
         width: 100%;
         height: auto;
@@ -195,9 +193,7 @@ class DiskWidget(Widget):
         refresh_interval: Expected refresh interval in seconds
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     DiskWidget {
         width: 100%;
         height: 100%;

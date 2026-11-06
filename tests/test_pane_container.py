@@ -306,8 +306,7 @@ class TestPaneContainerRendering:
         async with app.run_test() as pilot:
             await pilot.pause()  # Allow widget composition
             container = app.query_one("#test-container", PaneContainer)
-            title_bar = container.query_one("#title-bar", PaneTitleBar)
-            assert title_bar.title == "CPU Monitor"
+            assert container.border_title == "CPU Monitor"
 
     @pytest.mark.asyncio
     async def test_renders_with_content(self) -> None:
@@ -367,8 +366,7 @@ class TestPaneContainerRendering:
             container = app.query_one("#test-container", PaneContainer)
             container.title = "Updated Title"
             await pilot.pause()
-            title_bar = container.query_one("#title-bar", PaneTitleBar)
-            assert title_bar.title == "Updated Title"
+            assert container.border_title == "Updated Title"
 
     @pytest.mark.asyncio
     async def test_state_transition_loading_to_normal(self) -> None:

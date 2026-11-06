@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from rich.console import RenderableType
-from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
@@ -30,7 +29,6 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from uptop.models.base import DisplayMode
-from uptop.tui.widgets.sparkline import Sparkline
 
 if TYPE_CHECKING:
     from uptop.plugins.ping_models import PingData
@@ -81,9 +79,7 @@ class PingWidget(Widget):
         display_mode: Current display mode
     """
 
-    DEFAULT_CSS: ClassVar[
-        str
-    ] = """
+    DEFAULT_CSS: ClassVar[str] = """
     PingWidget {
         width: 100%;
         height: 100%;
@@ -174,7 +170,11 @@ class PingWidget(Widget):
         ok_count = sum(1 for r in self.data.hosts if r.alert_level == "ok")
         warning_count = sum(1 for r in self.data.hosts if r.alert_level == "warning")
         critical_count = sum(1 for r in self.data.hosts if r.alert_level == "critical")
-        down_count = sum(1 for r in self.data.hosts if r.status in ["down", "dns_failed", "timeout", "unreachable"])
+        down_count = sum(
+            1
+            for r in self.data.hosts
+            if r.status in ["down", "dns_failed", "timeout", "unreachable"]
+        )
 
         parts = [Text("Ping: ", style="bold")]
 
